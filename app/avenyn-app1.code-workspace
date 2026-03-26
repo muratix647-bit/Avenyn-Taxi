@@ -1,0 +1,2916 @@
+"use client"
+
+import React, { useEffect, useMemo, useRef, useState } from "react"
+import { createClient } from "@supabase/supabase-js"
+
+const supabase = createClient(
+  "https://ksmxrxqidnrvgubivhzy.supabase.co",
+  "sb_publishable_ds6smOMma1d_yUvgBvpOXA_pKDQmtEg",
+  {
+    auth: { persistSession: false },
+  }
+)
+
+const STATUS_OPTIONS = [
+  "Aktiv",
+  "På service",
+  "Service bokad",
+  "Uthyrd",
+  "Offline",
+]
+
+const SOURCE_OPTIONS = ["Avenyn Taxi", "Uber", "Bolt", "Kontant", "Swish"]
+
+const EXPENSE_CATEGORY_OPTIONS = [
+  "Service",
+  "Bränsle",
+  "Tvätt",
+  "Reparation",
+  "Däck",
+  "Försäkring",
+  "Skatt",
+  "Leasing",
+  "Trängselskatt",
+  "Parkering",
+  "Besiktning",
+  "Övrigt",
+]
+
+const DEFAULT_SALARY_PERCENT = 33
+
+const COMPANY = {
+  name: "Avenyn Taxi",
+  legalName: "Citra Trans och Bilservice AB",
+  orgnr: "556597-4796",
+  city: "Göteborg",
+  phone: "0700-315 315",
+  website: "avenyntaxi.se",
+  logoUrl: "/logo.png",
+}
+
+type Driver = {
+  id: string
+  full_name: string
+  phone: string
+  created_at?: string
+}
+
+type Vehicle = {
+  id: string
+  name: string
+  reg: string
+  status: string
+  driver: string
+  created_at?: string
+}
+
+type Trip = {
+  id: string
+  vehicle_id: string
+  amount: number
+  source: string
+  driver_name: string
+  vehicle_name: string
+  created_at?: string
+}
+
+type HaldaTrip = {
+  id: string
+  driver_name: string
+  vehicle_id?: string
+  amount: number
+  created_at?: string
+}
+
+type Advance = {
+  id: string
+  driver_name: string
+  amount: number
+  note: string
+  created_at?: string
+}
+
+type DriverProfile = {
+  id: string
+  driver_name: string
+  full_address: string
+  personal_number: string
+  bank_name: string
+  bank_account: string
+  cash_handled: number
+  cash_note: string
+  created_at?: string
+  updated_at?: string
+}
+
+type VehicleLocation = {
+  id: string
+  vehicle_id: string
+  lat: number
+  lng: number
+  accuracy?: number | null
+  speed?: number | null
+  heading?: number | null
+  address?: string | null
+  updated_at?: string
+  created_at?: string
+}
+
+type ExpenseRecord = {
+  id: string
+  vehicle_id: string
+  vehicle_name: string
+  reg: string
+  category: string
+  amount: number
+  workshop: string
+  note: string
+  expense_date?: string | null
+  next_service_date?: string | null
+  created_at?: string
+}
+
+type TabKey =
+  | "dashboard"
+  | "drivers"
+  | "vehicles"
+  | "trips"
+  | "advances"
+  | "costs"
+  | "payroll"
+
+function todayString() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function firstDayOfMonth() {
+  const d = new Date()
+  d.setDate(1)
+  return d.toISOString().slice(0, 10)
+}
+
+function firstDayOfWeek() {
+  const d = new Date()
+  const day = d.getDay()
+  const diff = day === 0 ? 6 : day - 1
+  d.setDate(d.getDate() - diff)
+  return d.toISOString().slice(0, 10)
+}
+
+function money(value: number) {
+  return `${Number(value || 0).toLocaleString("sv-SE")} kr`
+}
+
+function csvEscape(value: unknown) {
+  const text = String(value ?? "")
+  return `"${text.replace(/"/g, '""')}"`
+}
+
+function downloadCSV(filename: string, rows: (string | number)[][]) {
+  const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\n")
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "-"
+  return String(value).slice(0, 10)
+}
+
+function percentToMultiplier(percent: number) {
+  return Number(percent || 0) / 100
+}
+
+function clampSalaryPercent(value: string | number) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return DEFAULT_SALARY_PERCENT
+  if (n < 0) return 0
+  if (n > 100) return 100
+  return n
+}
+
+function formatCoords(value?: number | null) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "-"
+  return Number(value).toFixed(6)
+}
+
+function formatSpeed(value?: number | null) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "-"
+  return `${Math.round(Number(value) * 3.6)} km/h`
+}
+
+function mapEmbedUrl(lat?: number | null, lng?: number | null) {
+  if (lat === null || lat === undefined || lng === null || lng === undefined) return ""
+  const delta = 0.01
+  const left = Number(lng) - delta
+  const right = Number(lng) + delta
+  const top = Number(lat) + delta
+  const bottom = Number(lat) - delta
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${lat}%2C${lng}`
+}
+
+export default function Home() {
+  const [activeTab, setActiveTab] = useState<TabKey>("dashboard")
+  const [refreshing, setRefreshing] = useState(false)
+
+  const [drivers, setDrivers] = useState<Driver[]>([])
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [trips, setTrips] = useState<Trip[]>([])
+  const [haldaTrips, setHaldaTrips] = useState<HaldaTrip[]>([])
+  const [advances, setAdvances] = useState<Advance[]>([])
+  const [driverProfiles, setDriverProfiles] = useState<DriverProfile[]>([])
+  const [vehicleLocations, setVehicleLocations] = useState<VehicleLocation[]>([])
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>([])
+
+  const [driverSearch, setDriverSearch] = useState("")
+  const [vehicleSearch, setVehicleSearch] = useState("")
+  const [tripSearch, setTripSearch] = useState("")
+  const [advanceSearch, setAdvanceSearch] = useState("")
+  const [expenseSearch, setExpenseSearch] = useState("")
+
+  const [vehicleStatusFilter, setVehicleStatusFilter] = useState("Alla")
+  const [tripSourceFilter, setTripSourceFilter] = useState("Alla")
+  const [advanceDriverFilter, setAdvanceDriverFilter] = useState("Alla")
+  const [expenseCategoryFilter, setExpenseCategoryFilter] = useState("Alla")
+  const [expenseVehicleFilter, setExpenseVehicleFilter] = useState("Alla")
+
+  const [driverName, setDriverName] = useState("")
+  const [driverPhone, setDriverPhone] = useState("")
+  const [driverLoading, setDriverLoading] = useState(false)
+
+  const [editingDriverId, setEditingDriverId] = useState<string | null>(null)
+  const [editDriverName, setEditDriverName] = useState("")
+  const [editDriverPhone, setEditDriverPhone] = useState("")
+  const [savingDriverEdit, setSavingDriverEdit] = useState(false)
+  const [deletingDriverId, setDeletingDriverId] = useState<string | null>(null)
+
+  const [name, setName] = useState("")
+  const [reg, setReg] = useState("")
+  const [status, setStatus] = useState("Aktiv")
+  const [driver, setDriver] = useState("")
+  const [vehicleLoading, setVehicleLoading] = useState(false)
+
+  const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null)
+  const [editName, setEditName] = useState("")
+  const [editReg, setEditReg] = useState("")
+  const [editStatus, setEditStatus] = useState("Aktiv")
+  const [editDriver, setEditDriver] = useState("")
+  const [savingVehicleEdit, setSavingVehicleEdit] = useState(false)
+  const [deletingVehicleId, setDeletingVehicleId] = useState<string | null>(null)
+
+  const [tripVehicleId, setTripVehicleId] = useState("")
+  const [tripAmount, setTripAmount] = useState("")
+  const [tripSource, setTripSource] = useState("Avenyn Taxi")
+  const [tripLoading, setTripLoading] = useState(false)
+
+  const [editingTripId, setEditingTripId] = useState<string | null>(null)
+  const [editTripVehicleId, setEditTripVehicleId] = useState("")
+  const [editTripAmount, setEditTripAmount] = useState("")
+  const [editTripSource, setEditTripSource] = useState("Avenyn Taxi")
+  const [savingTripEdit, setSavingTripEdit] = useState(false)
+  const [deletingTripId, setDeletingTripId] = useState<string | null>(null)
+
+  const [advanceDriverName, setAdvanceDriverName] = useState("")
+  const [advanceAmount, setAdvanceAmount] = useState("")
+  const [advanceNote, setAdvanceNote] = useState("")
+  const [advanceLoading, setAdvanceLoading] = useState(false)
+
+  const [editingAdvanceId, setEditingAdvanceId] = useState<string | null>(null)
+  const [editAdvanceDriverName, setEditAdvanceDriverName] = useState("")
+  const [editAdvanceAmount, setEditAdvanceAmount] = useState("")
+  const [editAdvanceNote, setEditAdvanceNote] = useState("")
+  const [savingAdvanceEdit, setSavingAdvanceEdit] = useState(false)
+  const [deletingAdvanceId, setDeletingAdvanceId] = useState<string | null>(null)
+
+  const [expenseVehicleId, setExpenseVehicleId] = useState("")
+  const [expenseCategory, setExpenseCategory] = useState("Service")
+  const [expenseAmount, setExpenseAmount] = useState("")
+  const [expenseWorkshop, setExpenseWorkshop] = useState("")
+  const [expenseNote, setExpenseNote] = useState("")
+  const [expenseDate, setExpenseDate] = useState(todayString())
+  const [nextServiceDate, setNextServiceDate] = useState("")
+  const [expenseLoading, setExpenseLoading] = useState(false)
+
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null)
+  const [editExpenseVehicleId, setEditExpenseVehicleId] = useState("")
+  const [editExpenseCategory, setEditExpenseCategory] = useState("Service")
+  const [editExpenseAmount, setEditExpenseAmount] = useState("")
+  const [editExpenseWorkshop, setEditExpenseWorkshop] = useState("")
+  const [editExpenseNote, setEditExpenseNote] = useState("")
+  const [editExpenseDate, setEditExpenseDate] = useState(todayString())
+  const [editNextServiceDate, setEditNextServiceDate] = useState("")
+  const [savingExpenseEdit, setSavingExpenseEdit] = useState(false)
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null)
+
+  const [dateFrom, setDateFrom] = useState(firstDayOfMonth())
+  const [dateTo, setDateTo] = useState(todayString())
+  const [selectedPayrollDriver, setSelectedPayrollDriver] = useState("")
+
+  const [driverAddress, setDriverAddress] = useState("")
+  const [driverPersonalNumber, setDriverPersonalNumber] = useState("")
+  const [bankName, setBankName] = useState("")
+  const [bankAccount, setBankAccount] = useState("")
+  const [cashHandled, setCashHandled] = useState("")
+  const [cashNote, setCashNote] = useState(
+    "Kontanthantering påverkar ej lönen, endast informationsrad"
+  )
+  const [savingProfile, setSavingProfile] = useState(false)
+
+  const [salaryPercent, setSalaryPercent] = useState<number>(DEFAULT_SALARY_PERCENT)
+
+  const [selectedMapVehicleId, setSelectedMapVehicleId] = useState("")
+  const [gpsLoading, setGpsLoading] = useState(false)
+  const [gpsStatusText, setGpsStatusText] = useState("")
+  const [trackingVehicleId, setTrackingVehicleId] = useState<string | null>(null)
+
+  const watchIdRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem("avenyn_salary_percent")
+    if (stored) {
+      setSalaryPercent(clampSalaryPercent(stored))
+    }
+
+    void loadAll()
+
+    return () => {
+      if (
+        watchIdRef.current !== null &&
+        typeof navigator !== "undefined" &&
+        navigator.geolocation
+      ) {
+        navigator.geolocation.clearWatch(watchIdRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedPayrollDriver) return
+
+    const profile = driverProfiles.find(
+      (p) => String(p.driver_name || "").trim() === String(selectedPayrollDriver).trim()
+    )
+
+    if (profile) {
+      setDriverAddress(profile.full_address || "")
+      setDriverPersonalNumber(profile.personal_number || "")
+      setBankName(profile.bank_name || "")
+      setBankAccount(profile.bank_account || "")
+      setCashHandled(String(profile.cash_handled ?? ""))
+      setCashNote(
+        profile.cash_note || "Kontanthantering påverkar ej lönen, endast informationsrad"
+      )
+    } else {
+      setDriverAddress("")
+      setDriverPersonalNumber("")
+      setBankName("")
+      setBankAccount("")
+      setCashHandled("")
+      setCashNote("Kontanthantering påverkar ej lönen, endast informationsrad")
+    }
+  }, [selectedPayrollDriver, driverProfiles])
+
+  useEffect(() => {
+    const unique = drivers.map((d) => String(d.full_name || "").trim()).filter(Boolean)
+    if (!selectedPayrollDriver && unique.length > 0) setSelectedPayrollDriver(unique[0])
+    if (!advanceDriverName && unique.length > 0) setAdvanceDriverName(unique[0])
+  }, [drivers, selectedPayrollDriver, advanceDriverName])
+
+  async function loadAll() {
+    setRefreshing(true)
+
+    const [
+      driversRes,
+      vehiclesRes,
+      tripsRes,
+      advancesRes,
+      profilesRes,
+      locationsRes,
+      expensesRes,
+      haldaRes,
+    ] = await Promise.all([
+      supabase.from("drivers").select("*").order("full_name", { ascending: true }),
+      supabase.from("vehicles").select("*").order("name", { ascending: true }),
+      supabase.from("trips").select("*").order("created_at", { ascending: false }),
+      supabase.from("advances").select("*").order("created_at", { ascending: false }),
+      supabase.from("driver_profiles").select("*").order("driver_name", { ascending: true }),
+      supabase.from("vehicle_locations").select("*").order("updated_at", { ascending: false }),
+      supabase.from("expenses").select("*").order("created_at", { ascending: false }),
+      supabase.from("halda_trips").select("*").order("created_at", { ascending: false }),
+    ])
+
+    function alertAndStop(message: string) {
+      alert(message)
+      setRefreshing(false)
+    }
+
+    if (driversRes.error) return alertAndStop(driversRes.error.message)
+    if (vehiclesRes.error) return alertAndStop(vehiclesRes.error.message)
+    if (tripsRes.error) return alertAndStop(tripsRes.error.message)
+    if (advancesRes.error) return alertAndStop(advancesRes.error.message)
+    if (profilesRes.error) return alertAndStop(profilesRes.error.message)
+    if (expensesRes.error) return alertAndStop(expensesRes.error.message)
+    if (haldaRes.error) return alertAndStop(haldaRes.error.message)
+
+    const loadedDrivers = (driversRes.data || []) as Driver[]
+    const loadedVehicles = (vehiclesRes.data || []) as Vehicle[]
+    const loadedTrips = (tripsRes.data || []) as Trip[]
+    const loadedAdvances = (advancesRes.data || []) as Advance[]
+    const loadedProfiles = (profilesRes.data || []) as DriverProfile[]
+    const loadedExpenses = (expensesRes.data || []) as ExpenseRecord[]
+    const loadedHaldaTrips = (haldaRes.data || []) as HaldaTrip[]
+
+    setDrivers(loadedDrivers)
+    setVehicles(loadedVehicles)
+    setTrips(loadedTrips)
+    setAdvances(loadedAdvances)
+    setDriverProfiles(loadedProfiles)
+    setExpenses(loadedExpenses)
+    setHaldaTrips(loadedHaldaTrips)
+
+    if (!locationsRes.error) {
+      const latestByVehicle = new Map<string, VehicleLocation>()
+      for (const row of (locationsRes.data || []) as VehicleLocation[]) {
+        const key = String(row.vehicle_id)
+        if (!latestByVehicle.has(key)) latestByVehicle.set(key, row)
+      }
+      setVehicleLocations(Array.from(latestByVehicle.values()))
+    } else {
+      setVehicleLocations([])
+    }
+
+    if (!tripVehicleId && loadedVehicles.length > 0) setTripVehicleId(String(loadedVehicles[0].id))
+    if (!expenseVehicleId && loadedVehicles.length > 0) setExpenseVehicleId(String(loadedVehicles[0].id))
+    if (!selectedMapVehicleId && loadedVehicles.length > 0) {
+      setSelectedMapVehicleId(String(loadedVehicles[0].id))
+    }
+
+    setRefreshing(false)
+  }
+
+  async function fetchDrivers() {
+    const { data, error } = await supabase
+      .from("drivers")
+      .select("*")
+      .order("full_name", { ascending: true })
+    if (error) return alert(error.message)
+    setDrivers((data || []) as Driver[])
+  }
+
+  async function fetchVehicles() {
+    const { data, error } = await supabase
+      .from("vehicles")
+      .select("*")
+      .order("name", { ascending: true })
+    if (error) return alert(error.message)
+    const rows = (data || []) as Vehicle[]
+    setVehicles(rows)
+    if (!tripVehicleId && rows.length > 0) setTripVehicleId(String(rows[0].id))
+    if (!expenseVehicleId && rows.length > 0) setExpenseVehicleId(String(rows[0].id))
+    if (!selectedMapVehicleId && rows.length > 0) setSelectedMapVehicleId(String(rows[0].id))
+  }
+
+  async function fetchTrips() {
+    const { data, error } = await supabase
+      .from("trips")
+      .select("*")
+      .order("created_at", { ascending: false })
+    if (error) return alert(error.message)
+    setTrips((data || []) as Trip[])
+  }
+
+  async function fetchAdvances() {
+    const { data, error } = await supabase
+      .from("advances")
+      .select("*")
+      .order("created_at", { ascending: false })
+    if (error) return alert(error.message)
+    setAdvances((data || []) as Advance[])
+  }
+
+  async function fetchDriverProfiles() {
+    const { data, error } = await supabase
+      .from("driver_profiles")
+      .select("*")
+      .order("driver_name", { ascending: true })
+    if (error) return alert(error.message)
+    setDriverProfiles((data || []) as DriverProfile[])
+  }
+
+  async function fetchVehicleLocations() {
+    const { data, error } = await supabase
+      .from("vehicle_locations")
+      .select("*")
+      .order("updated_at", { ascending: false })
+    if (error) return
+    const latestByVehicle = new Map<string, VehicleLocation>()
+    for (const row of (data || []) as VehicleLocation[]) {
+      const key = String(row.vehicle_id)
+      if (!latestByVehicle.has(key)) latestByVehicle.set(key, row)
+    }
+    setVehicleLocations(Array.from(latestByVehicle.values()))
+  }
+
+  async function fetchExpenses() {
+    const { data, error } = await supabase
+      .from("expenses")
+      .select("*")
+      .order("created_at", { ascending: false })
+    if (error) return alert(error.message)
+    setExpenses((data || []) as ExpenseRecord[])
+  }
+
+  async function addDriver() {
+    if (!driverName.trim()) return alert("Fyll i förarnamn")
+    setDriverLoading(true)
+
+    const { error } = await supabase.from("drivers").insert([
+      {
+        full_name: driverName.trim(),
+        phone: driverPhone.trim(),
+      },
+    ])
+
+    setDriverLoading(false)
+    if (error) return alert(error.message)
+
+    setDriverName("")
+    setDriverPhone("")
+    await fetchDrivers()
+  }
+
+  function startEditDriver(driverRow: Driver) {
+    setEditingDriverId(String(driverRow.id))
+    setEditDriverName(driverRow.full_name || "")
+    setEditDriverPhone(driverRow.phone || "")
+  }
+
+  function cancelEditDriver() {
+    setEditingDriverId(null)
+    setEditDriverName("")
+    setEditDriverPhone("")
+  }
+
+  async function saveDriverEdit(id: string) {
+    if (!editDriverName.trim()) return alert("Fyll i förarnamn")
+    setSavingDriverEdit(true)
+
+    const oldDriver = drivers.find((d) => String(d.id) === String(id))
+    const oldName = String(oldDriver?.full_name || "").trim()
+    const newName = editDriverName.trim()
+
+    const { error } = await supabase
+      .from("drivers")
+      .update({ full_name: newName, phone: editDriverPhone.trim() })
+      .eq("id", id)
+
+    if (error) {
+      setSavingDriverEdit(false)
+      return alert(error.message)
+    }
+
+    if (oldName && oldName !== newName) {
+      await supabase.from("vehicles").update({ driver: newName }).eq("driver", oldName)
+      await supabase.from("trips").update({ driver_name: newName }).eq("driver_name", oldName)
+      await supabase.from("advances").update({ driver_name: newName }).eq("driver_name", oldName)
+      await supabase
+        .from("driver_profiles")
+        .update({ driver_name: newName, updated_at: new Date().toISOString() })
+        .eq("driver_name", oldName)
+
+      if (selectedPayrollDriver === oldName) setSelectedPayrollDriver(newName)
+      if (advanceDriverName === oldName) setAdvanceDriverName(newName)
+      if (driver === oldName) setDriver(newName)
+      if (editDriver === oldName) setEditDriver(newName)
+      if (editAdvanceDriverName === oldName) setEditAdvanceDriverName(newName)
+    }
+
+    setSavingDriverEdit(false)
+    cancelEditDriver()
+    await loadAll()
+  }
+
+  async function deleteDriver(id: string) {
+    const driverRow = drivers.find((d) => String(d.id) === String(id))
+    const driverNameToDelete = String(driverRow?.full_name || "").trim()
+    if (!driverNameToDelete) return alert("Kunde inte hitta förare")
+
+    const hasVehicles = vehicles.some((v) => String(v.driver || "").trim() === driverNameToDelete)
+    if (hasVehicles) {
+      return alert("Denna förare är kopplad till en eller flera bilar. Ändra eller ta bort bilarna först.")
+    }
+
+    if (!confirm(`Vill du ta bort föraren ${driverNameToDelete}?`)) return
+    setDeletingDriverId(id)
+
+    await supabase.from("advances").delete().eq("driver_name", driverNameToDelete)
+    await supabase.from("driver_profiles").delete().eq("driver_name", driverNameToDelete)
+
+    const { error } = await supabase.from("drivers").delete().eq("id", id)
+    setDeletingDriverId(null)
+    if (error) return alert(error.message)
+
+    if (selectedPayrollDriver === driverNameToDelete) setSelectedPayrollDriver("")
+    if (advanceDriverName === driverNameToDelete) setAdvanceDriverName("")
+    await loadAll()
+  }
+
+  async function saveDriverProfile() {
+    if (!selectedPayrollDriver.trim()) return alert("Välj förare")
+    setSavingProfile(true)
+
+    const payload = {
+      driver_name: selectedPayrollDriver.trim(),
+      full_address: driverAddress.trim(),
+      personal_number: driverPersonalNumber.trim(),
+      bank_name: bankName.trim(),
+      bank_account: bankAccount.trim(),
+      cash_handled: Number(cashHandled || 0),
+      cash_note: cashNote.trim(),
+      updated_at: new Date().toISOString(),
+    }
+
+    const existing = driverProfiles.find(
+      (p) => String(p.driver_name || "").trim() === selectedPayrollDriver.trim()
+    )
+
+    let error: { message: string } | null = null
+
+    if (existing) {
+      const res = await supabase.from("driver_profiles").update(payload).eq("id", existing.id)
+      error = res.error
+    } else {
+      const res = await supabase.from("driver_profiles").insert([payload])
+      error = res.error
+    }
+
+    setSavingProfile(false)
+    if (error) return alert(error.message)
+
+    await fetchDriverProfiles()
+    alert("Föraruppgifter sparade permanent")
+  }
+
+  async function addVehicle() {
+    if (!name.trim() || !reg.trim()) return alert("Fyll i namn och registreringsnummer")
+    setVehicleLoading(true)
+
+    const { error } = await supabase.from("vehicles").insert([
+      {
+        name: name.trim(),
+        reg: reg.trim().toUpperCase(),
+        status,
+        driver: driver.trim(),
+      },
+    ])
+
+    setVehicleLoading(false)
+    if (error) return alert(error.message)
+
+    setName("")
+    setReg("")
+    setStatus("Aktiv")
+    setDriver("")
+    await fetchVehicles()
+  }
+
+  function startEditVehicle(vehicleRow: Vehicle) {
+    setEditingVehicleId(String(vehicleRow.id))
+    setEditName(vehicleRow.name || "")
+    setEditReg(vehicleRow.reg || "")
+    setEditStatus(vehicleRow.status || "Aktiv")
+    setEditDriver(vehicleRow.driver || "")
+  }
+
+  function cancelEditVehicle() {
+    setEditingVehicleId(null)
+    setEditName("")
+    setEditReg("")
+    setEditStatus("Aktiv")
+    setEditDriver("")
+  }
+
+  async function saveVehicleEdit(id: string) {
+    if (!editName.trim() || !editReg.trim()) return alert("Fyll i namn och registreringsnummer")
+    setSavingVehicleEdit(true)
+
+    const oldVehicle = vehicles.find((v) => String(v.id) === String(id))
+    const oldVehicleName = String(oldVehicle?.name || "").trim()
+    const newVehicleName = editName.trim()
+    const newReg = editReg.trim().toUpperCase()
+    const newDriverName = editDriver.trim()
+
+    const { error } = await supabase
+      .from("vehicles")
+      .update({
+        name: newVehicleName,
+        reg: newReg,
+        status: editStatus,
+        driver: newDriverName,
+      })
+      .eq("id", id)
+
+    setSavingVehicleEdit(false)
+    if (error) return alert(error.message)
+
+    if (oldVehicleName && oldVehicleName !== newVehicleName) {
+      await supabase.from("trips").update({ vehicle_name: newVehicleName }).eq("vehicle_id", id)
+      await supabase
+        .from("expenses")
+        .update({ vehicle_name: newVehicleName, reg: newReg })
+        .eq("vehicle_id", id)
+    } else {
+      await supabase.from("expenses").update({ reg: newReg }).eq("vehicle_id", id)
+    }
+
+    if (oldVehicle?.driver !== newDriverName) {
+      await supabase.from("trips").update({ driver_name: newDriverName }).eq("vehicle_id", id)
+    }
+
+    cancelEditVehicle()
+    await Promise.all([fetchVehicles(), fetchTrips(), fetchExpenses()])
+  }
+
+  async function deleteVehicle(id: string) {
+    if (!confirm("Vill du ta bort bilen?")) return
+    setDeletingVehicleId(id)
+
+    const { error } = await supabase.from("vehicles").delete().eq("id", id)
+    setDeletingVehicleId(null)
+    if (error) return alert(error.message)
+
+    await supabase.from("trips").delete().eq("vehicle_id", id)
+    await supabase.from("vehicle_locations").delete().eq("vehicle_id", id)
+    await supabase.from("expenses").delete().eq("vehicle_id", id)
+    await Promise.all([fetchVehicles(), fetchTrips(), fetchVehicleLocations(), fetchExpenses()])
+  }
+
+  async function addTrip() {
+    if (!tripVehicleId || !tripAmount.trim()) return alert("Välj bil och fyll i belopp")
+    setTripLoading(true)
+
+    const vehicleRow = vehicles.find((v) => String(v.id) === String(tripVehicleId))
+
+    const { error } = await supabase.from("trips").insert([
+      {
+        vehicle_id: tripVehicleId,
+        amount: Number(tripAmount),
+        source: tripSource,
+        driver_name: vehicleRow?.driver || "",
+        vehicle_name: vehicleRow?.name || "",
+      },
+    ])
+
+    setTripLoading(false)
+    if (error) return alert(error.message)
+
+    setTripAmount("")
+    setTripSource("Avenyn Taxi")
+    await fetchTrips()
+  }
+
+  function startEditTrip(trip: Trip) {
+    setEditingTripId(String(trip.id))
+    setEditTripVehicleId(String(trip.vehicle_id || ""))
+    setEditTripAmount(String(trip.amount || ""))
+    setEditTripSource(trip.source || "Avenyn Taxi")
+  }
+
+  function cancelEditTrip() {
+    setEditingTripId(null)
+    setEditTripVehicleId("")
+    setEditTripAmount("")
+    setEditTripSource("Avenyn Taxi")
+  }
+
+  async function saveTripEdit(id: string) {
+    if (!editTripVehicleId || !editTripAmount.trim()) return alert("Välj bil och fyll i belopp")
+    setSavingTripEdit(true)
+
+    const vehicleRow = vehicles.find((v) => String(v.id) === String(editTripVehicleId))
+
+    const { error } = await supabase
+      .from("trips")
+      .update({
+        vehicle_id: editTripVehicleId,
+        amount: Number(editTripAmount),
+        source: editTripSource,
+        driver_name: vehicleRow?.driver || "",
+        vehicle_name: vehicleRow?.name || "",
+      })
+      .eq("id", id)
+
+    setSavingTripEdit(false)
+    if (error) return alert(error.message)
+
+    cancelEditTrip()
+    await fetchTrips()
+  }
+
+  async function deleteTrip(id: string) {
+    if (!confirm("Vill du ta bort intäkten?")) return
+    setDeletingTripId(id)
+    const { error } = await supabase.from("trips").delete().eq("id", id)
+    setDeletingTripId(null)
+    if (error) return alert(error.message)
+    await fetchTrips()
+  }
+
+  async function addAdvance() {
+    if (!advanceDriverName.trim() || !advanceAmount.trim()) {
+      return alert("Välj förare och fyll i belopp")
+    }
+
+    setAdvanceLoading(true)
+
+    const { error } = await supabase.from("advances").insert([
+      {
+        driver_name: advanceDriverName.trim(),
+        amount: Number(advanceAmount),
+        note: advanceNote.trim(),
+      },
+    ])
+
+    setAdvanceLoading(false)
+    if (error) return alert(error.message)
+
+    setAdvanceAmount("")
+    setAdvanceNote("")
+    await fetchAdvances()
+  }
+
+  function startEditAdvance(advance: Advance) {
+    setEditingAdvanceId(String(advance.id))
+    setEditAdvanceDriverName(advance.driver_name || "")
+    setEditAdvanceAmount(String(advance.amount || ""))
+    setEditAdvanceNote(advance.note || "")
+  }
+
+  function cancelEditAdvance() {
+    setEditingAdvanceId(null)
+    setEditAdvanceDriverName("")
+    setEditAdvanceAmount("")
+    setEditAdvanceNote("")
+  }
+
+  async function saveAdvanceEdit(id: string) {
+    if (!editAdvanceDriverName.trim() || !editAdvanceAmount.trim()) {
+      return alert("Välj förare och fyll i belopp")
+    }
+
+    setSavingAdvanceEdit(true)
+
+    const { error } = await supabase
+      .from("advances")
+      .update({
+        driver_name: editAdvanceDriverName.trim(),
+        amount: Number(editAdvanceAmount),
+        note: editAdvanceNote.trim(),
+      })
+      .eq("id", id)
+
+    setSavingAdvanceEdit(false)
+    if (error) return alert(error.message)
+
+    cancelEditAdvance()
+    await fetchAdvances()
+  }
+
+  async function deleteAdvance(id: string) {
+    if (!confirm("Vill du ta bort förskottet?")) return
+    setDeletingAdvanceId(id)
+    const { error } = await supabase.from("advances").delete().eq("id", id)
+    setDeletingAdvanceId(null)
+    if (error) return alert(error.message)
+    await fetchAdvances()
+  }
+
+  async function addExpense() {
+    if (!expenseVehicleId || !expenseAmount.trim()) {
+      return alert("Välj bil och fyll i kostnad")
+    }
+
+    setExpenseLoading(true)
+    const vehicleRow = vehicles.find((v) => String(v.id) === String(expenseVehicleId))
+
+    const { error } = await supabase.from("expenses").insert([
+      {
+        vehicle_id: expenseVehicleId,
+        vehicle_name: vehicleRow?.name || "",
+        reg: vehicleRow?.reg || "",
+        category: expenseCategory,
+        amount: Number(expenseAmount),
+        workshop: expenseWorkshop.trim(),
+        note: expenseNote.trim(),
+        expense_date: expenseDate || todayString(),
+        next_service_date: expenseCategory === "Service" ? nextServiceDate || null : null,
+      },
+    ])
+
+    setExpenseLoading(false)
+    if (error) return alert(error.message)
+
+    setExpenseCategory("Service")
+    setExpenseAmount("")
+    setExpenseWorkshop("")
+    setExpenseNote("")
+    setExpenseDate(todayString())
+    setNextServiceDate("")
+    await fetchExpenses()
+  }
+
+  function startEditExpense(item: ExpenseRecord) {
+    setEditingExpenseId(String(item.id))
+    setEditExpenseVehicleId(String(item.vehicle_id || ""))
+    setEditExpenseCategory(item.category || "Service")
+    setEditExpenseAmount(String(item.amount || ""))
+    setEditExpenseWorkshop(item.workshop || "")
+    setEditExpenseNote(item.note || "")
+    setEditExpenseDate(
+      formatDate(item.expense_date || item.created_at) === "-"
+        ? todayString()
+        : formatDate(item.expense_date || item.created_at)
+    )
+    setEditNextServiceDate(
+      formatDate(item.next_service_date) === "-" ? "" : formatDate(item.next_service_date)
+    )
+  }
+
+  function cancelEditExpense() {
+    setEditingExpenseId(null)
+    setEditExpenseVehicleId("")
+    setEditExpenseCategory("Service")
+    setEditExpenseAmount("")
+    setEditExpenseWorkshop("")
+    setEditExpenseNote("")
+    setEditExpenseDate(todayString())
+    setEditNextServiceDate("")
+  }
+
+  async function saveExpenseEdit(id: string) {
+    if (!editExpenseVehicleId || !editExpenseAmount.trim()) {
+      return alert("Välj bil och fyll i kostnad")
+    }
+
+    setSavingExpenseEdit(true)
+    const vehicleRow = vehicles.find((v) => String(v.id) === String(editExpenseVehicleId))
+
+    const { error } = await supabase
+      .from("expenses")
+      .update({
+        vehicle_id: editExpenseVehicleId,
+        vehicle_name: vehicleRow?.name || "",
+        reg: vehicleRow?.reg || "",
+        category: editExpenseCategory,
+        amount: Number(editExpenseAmount),
+        workshop: editExpenseWorkshop.trim(),
+        note: editExpenseNote.trim(),
+        expense_date: editExpenseDate || todayString(),
+        next_service_date: editExpenseCategory === "Service" ? editNextServiceDate || null : null,
+      })
+      .eq("id", id)
+
+    setSavingExpenseEdit(false)
+    if (error) return alert(error.message)
+
+    cancelEditExpense()
+    await fetchExpenses()
+  }
+
+  async function deleteExpense(id: string) {
+    if (!confirm("Vill du ta bort kostnaden?")) return
+    setDeletingExpenseId(id)
+    const { error } = await supabase.from("expenses").delete().eq("id", id)
+    setDeletingExpenseId(null)
+    if (error) return alert(error.message)
+    await fetchExpenses()
+  }
+
+  async function saveVehicleLocation(vehicleId: string, coords: GeolocationCoordinates) {
+    const payload = {
+      vehicle_id: vehicleId,
+      lat: Number(coords.latitude),
+      lng: Number(coords.longitude),
+      accuracy: coords.accuracy ?? null,
+      speed: coords.speed ?? null,
+      heading: coords.heading ?? null,
+      updated_at: new Date().toISOString(),
+    }
+
+    const existing = vehicleLocations.find(
+      (item) => String(item.vehicle_id) === String(vehicleId)
+    )
+
+    let error: { message: string } | null = null
+
+    if (existing?.id) {
+      const res = await supabase.from("vehicle_locations").update(payload).eq("id", existing.id)
+      error = res.error
+    } else {
+      const res = await supabase.from("vehicle_locations").insert([payload])
+      error = res.error
+    }
+
+    if (!error) await fetchVehicleLocations()
+  }
+
+  async function captureVehicleGPS(vehicleId: string) {
+    if (!vehicleId) return alert("Välj bil för GPS")
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      return alert("GPS stöds inte i denna enhet/webbläsare")
+    }
+
+    setGpsLoading(true)
+    setGpsStatusText("Hämtar GPS-position...")
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        await saveVehicleLocation(vehicleId, position.coords)
+        setGpsLoading(false)
+        setGpsStatusText("Senaste position sparad")
+      },
+      (error) => {
+        setGpsLoading(false)
+        setGpsStatusText("")
+        alert(error.message || "Kunde inte hämta GPS-position")
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0,
+      }
+    )
+  }
+
+  function startLiveTracking(vehicleId: string) {
+    if (!vehicleId) return alert("Välj bil först")
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      return alert("GPS stöds inte i denna enhet/webbläsare")
+    }
+
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current)
+      watchIdRef.current = null
+    }
+
+    setTrackingVehicleId(vehicleId)
+    setGpsStatusText("Live tracking startad...")
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      async (position) => {
+        await saveVehicleLocation(vehicleId, position.coords)
+        setGpsStatusText(`Live tracking aktiv • ${new Date().toLocaleTimeString("sv-SE")}`)
+      },
+      (error) => {
+        setGpsStatusText("")
+        setTrackingVehicleId(null)
+        alert(error.message || "Live tracking stoppades")
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 20000,
+      }
+    )
+  }
+
+  function stopLiveTracking() {
+    if (
+      watchIdRef.current !== null &&
+      typeof navigator !== "undefined" &&
+      navigator.geolocation
+    ) {
+      navigator.geolocation.clearWatch(watchIdRef.current)
+      watchIdRef.current = null
+    }
+    setTrackingVehicleId(null)
+    setGpsStatusText("Live tracking stoppad")
+  }
+
+  function handleSalaryPercentChange(value: string) {
+    const next = clampSalaryPercent(value)
+    setSalaryPercent(next)
+    window.localStorage.setItem("avenyn_salary_percent", String(next))
+  }
+
+  const uniqueDrivers = useMemo(() => {
+    return drivers.map((d) => String(d.full_name || "").trim()).filter(Boolean)
+  }, [drivers])
+
+  function getDriverVehicles(driverName: string) {
+    return vehicles.filter((v) => String(v.driver || "").trim() === String(driverName || "").trim())
+  }
+
+  const filteredTrips = useMemo(() => {
+    return trips.filter((t) => {
+      const tripDate = String(t.created_at || "").slice(0, 10)
+      if (dateFrom && tripDate < dateFrom) return false
+      if (dateTo && tripDate > dateTo) return false
+      if (tripSourceFilter !== "Alla" && String(t.source || "") !== tripSourceFilter) return false
+      return true
+    })
+  }, [trips, dateFrom, dateTo, tripSourceFilter])
+
+  const filteredAdvances = useMemo(() => {
+    return advances.filter((a) => {
+      const d = String(a.created_at || "").slice(0, 10)
+      if (dateFrom && d < dateFrom) return false
+      if (dateTo && d > dateTo) return false
+      if (
+        advanceDriverFilter !== "Alla" &&
+        String(a.driver_name || "").trim() !== advanceDriverFilter
+      ) {
+        return false
+      }
+      return true
+    })
+  }, [advances, dateFrom, dateTo, advanceDriverFilter])
+
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((e) => {
+      const d = String(e.expense_date || e.created_at || "").slice(0, 10)
+      if (dateFrom && d < dateFrom) return false
+      if (dateTo && d > dateTo) return false
+      if (expenseCategoryFilter !== "Alla" && String(e.category || "") !== expenseCategoryFilter) return false
+      if (expenseVehicleFilter !== "Alla" && String(e.vehicle_name || "") !== expenseVehicleFilter) {
+        return false
+      }
+      return true
+    })
+  }, [expenses, dateFrom, dateTo, expenseCategoryFilter, expenseVehicleFilter])
+
+  const filteredDrivers = useMemo(() => {
+    const q = driverSearch.trim().toLowerCase()
+    if (!q) return drivers
+    return drivers.filter((d) => {
+      return (
+        String(d.full_name || "").toLowerCase().includes(q) ||
+        String(d.phone || "").toLowerCase().includes(q)
+      )
+    })
+  }, [drivers, driverSearch])
+
+  const filteredVehiclesList = useMemo(() => {
+    const q = vehicleSearch.trim().toLowerCase()
+    return vehicles.filter((v) => {
+      const matchesSearch =
+        !q ||
+        String(v.name || "").toLowerCase().includes(q) ||
+        String(v.reg || "").toLowerCase().includes(q) ||
+        String(v.driver || "").toLowerCase().includes(q) ||
+        String(v.status || "").toLowerCase().includes(q)
+
+      const matchesStatus =
+        vehicleStatusFilter === "Alla" || String(v.status || "") === vehicleStatusFilter
+
+      return matchesSearch && matchesStatus
+    })
+  }, [vehicles, vehicleSearch, vehicleStatusFilter])
+
+  const filteredTripsList = useMemo(() => {
+    const q = tripSearch.trim().toLowerCase()
+    if (!q) return filteredTrips
+    return filteredTrips.filter((t) => {
+      return (
+        String(t.vehicle_name || "").toLowerCase().includes(q) ||
+        String(t.driver_name || "").toLowerCase().includes(q) ||
+        String(t.source || "").toLowerCase().includes(q) ||
+        String(t.amount || "").toLowerCase().includes(q) ||
+        String(t.created_at || "").slice(0, 10).includes(q)
+      )
+    })
+  }, [filteredTrips, tripSearch])
+
+  const filteredAdvancesList = useMemo(() => {
+    const q = advanceSearch.trim().toLowerCase()
+    if (!q) return filteredAdvances
+    return filteredAdvances.filter((a) => {
+      return (
+        String(a.driver_name || "").toLowerCase().includes(q) ||
+        String(a.note || "").toLowerCase().includes(q) ||
+        String(a.amount || "").toLowerCase().includes(q) ||
+        String(a.created_at || "").slice(0, 10).includes(q)
+      )
+    })
+  }, [filteredAdvances, advanceSearch])
+
+  const filteredExpensesList = useMemo(() => {
+    const q = expenseSearch.trim().toLowerCase()
+    if (!q) return filteredExpenses
+    return filteredExpenses.filter((e) => {
+      return (
+        String(e.vehicle_name || "").toLowerCase().includes(q) ||
+        String(e.reg || "").toLowerCase().includes(q) ||
+        String(e.category || "").toLowerCase().includes(q) ||
+        String(e.workshop || "").toLowerCase().includes(q) ||
+        String(e.note || "").toLowerCase().includes(q) ||
+        String(e.amount || "").toLowerCase().includes(q) ||
+        String(e.expense_date || e.created_at || "").slice(0, 10).includes(q)
+      )
+    })
+  }, [filteredExpenses, expenseSearch])
+
+  function getVehicleIncome(vehicleId: string) {
+    const tripIncome = filteredTrips
+      .filter((t) => String(t.vehicle_id) === String(vehicleId))
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0)
+
+    const vehicleRow = vehicles.find((v) => String(v.id) === String(vehicleId))
+    const driverName = String(vehicleRow?.driver || "").trim()
+
+    const haldaIncome = haldaTrips
+      .filter((h) => {
+        const haldaDriver = String(h.driver_name || "").trim()
+        const haldaDate = String(h.created_at || "").slice(0, 10)
+        if (!driverName || haldaDriver !== driverName) return false
+        if (dateFrom && haldaDate < dateFrom) return false
+        if (dateTo && haldaDate > dateTo) return false
+        return true
+      })
+      .reduce((sum, h) => sum + Number(h.amount || 0), 0)
+
+    return tripIncome + haldaIncome
+  }
+
+  function getVehicleCosts(vehicleId: string) {
+    return filteredExpenses
+      .filter((e) => String(e.vehicle_id) === String(vehicleId))
+      .reduce((sum, e) => sum + Number(e.amount || 0), 0)
+  }
+
+  function getVehicleProfit(vehicleId: string) {
+    return getVehicleIncome(vehicleId) - getVehicleCosts(vehicleId)
+  }
+
+  function getDriverIncome(driverName: string) {
+    const cleanDriverName = String(driverName || "").trim()
+    const vehicleIds = getDriverVehicles(cleanDriverName).map((v) => String(v.id))
+
+    const tripIncome = filteredTrips
+      .filter((t) => vehicleIds.includes(String(t.vehicle_id)))
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0)
+
+    const haldaIncome = haldaTrips
+      .filter((h) => {
+        const haldaDriver = String(h.driver_name || "").trim()
+        const haldaDate = String(h.created_at || "").slice(0, 10)
+        if (haldaDriver !== cleanDriverName) return false
+        if (dateFrom && haldaDate < dateFrom) return false
+        if (dateTo && haldaDate > dateTo) return false
+        return true
+      })
+      .reduce((sum, h) => sum + Number(h.amount || 0), 0)
+
+    return tripIncome + haldaIncome
+  }
+
+  function getDriverSalary(driverName: string) {
+    return Math.round(getDriverIncome(driverName) * percentToMultiplier(salaryPercent))
+  }
+
+  function getDriverAdvances(driverName: string) {
+    return filteredAdvances
+      .filter((a) => String(a.driver_name || "").trim() === String(driverName || "").trim())
+      .reduce((sum, a) => sum + Number(a.amount || 0), 0)
+  }
+
+  function getDriverNetSalary(driverName: string) {
+    return getDriverSalary(driverName) - getDriverAdvances(driverName)
+  }
+
+  const totalTripIncome = filteredTrips.reduce((sum, t) => sum + Number(t.amount || 0), 0)
+
+  const totalHaldaIncome = haldaTrips
+    .filter((h) => {
+      const haldaDate = String(h.created_at || "").slice(0, 10)
+      if (dateFrom && haldaDate < dateFrom) return false
+      if (dateTo && haldaDate > dateTo) return false
+      return true
+    })
+    .reduce((sum, h) => sum + Number(h.amount || 0), 0)
+
+  const totalIncome = totalTripIncome + totalHaldaIncome
+  const totalAdvances = filteredAdvances.reduce((sum, a) => sum + Number(a.amount || 0), 0)
+  const totalCosts = filteredExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0)
+  const totalProfit = totalIncome - totalCosts
+
+  const sourceSummary = useMemo(() => {
+    const normalSources = SOURCE_OPTIONS.map((source) => {
+      const total = filteredTrips
+        .filter((t) => String(t.source || "") === source)
+        .reduce((sum, t) => sum + Number(t.amount || 0), 0)
+
+      return { source, total }
+    })
+
+    const haldaTotal = haldaTrips
+      .filter((h) => {
+        const haldaDate = String(h.created_at || "").slice(0, 10)
+        if (dateFrom && haldaDate < dateFrom) return false
+        if (dateTo && haldaDate > dateTo) return false
+        return true
+      })
+      .reduce((sum, h) => sum + Number(h.amount || 0), 0)
+
+    return [...normalSources, { source: "Halda", total: haldaTotal }]
+  }, [filteredTrips, haldaTrips, dateFrom, dateTo])
+
+  const expenseSummary = useMemo(() => {
+    return EXPENSE_CATEGORY_OPTIONS.map((category) => {
+      const total = filteredExpenses
+        .filter((e) => String(e.category || "") === category)
+        .reduce((sum, e) => sum + Number(e.amount || 0), 0)
+      return { category, total }
+    }).filter((x) => x.total > 0)
+  }, [filteredExpenses])
+
+  const statusSummary = useMemo(() => {
+    return STATUS_OPTIONS.map((item) => {
+      const total = vehicles.filter((v) => String(v.status || "") === item).length
+      return { label: item, total }
+    })
+  }, [vehicles])
+
+  const payrollTrips = useMemo(() => {
+    if (!selectedPayrollDriver) return []
+    const ids = getDriverVehicles(selectedPayrollDriver).map((v) => String(v.id))
+    return filteredTrips.filter((t) => ids.includes(String(t.vehicle_id)))
+  }, [filteredTrips, selectedPayrollDriver, vehicles])
+
+  const payrollAdvances = useMemo(() => {
+    if (!selectedPayrollDriver) return []
+    return filteredAdvances.filter(
+      (a) => String(a.driver_name || "").trim() === String(selectedPayrollDriver || "").trim()
+    )
+  }, [filteredAdvances, selectedPayrollDriver])
+
+  const payrollIncome = selectedPayrollDriver ? getDriverIncome(selectedPayrollDriver) : 0
+  const payrollSalary = selectedPayrollDriver ? getDriverSalary(selectedPayrollDriver) : 0
+  const payrollAdvanceTotal = selectedPayrollDriver ? getDriverAdvances(selectedPayrollDriver) : 0
+  const payrollNet = selectedPayrollDriver ? getDriverNetSalary(selectedPayrollDriver) : 0
+
+  const topDrivers = useMemo(() => {
+    return uniqueDrivers
+      .map((driverName) => ({
+        driverName,
+        income: getDriverIncome(driverName),
+        advances: getDriverAdvances(driverName),
+        net: getDriverNetSalary(driverName),
+      }))
+      .sort((a, b) => b.income - a.income)
+      .slice(0, 10)
+  }, [uniqueDrivers, filteredTrips, filteredAdvances, vehicles, salaryPercent, haldaTrips, dateFrom, dateTo])
+
+  const visibleVehiclesIncome = useMemo(() => {
+    return filteredVehiclesList.reduce(
+      (sum, vehicleRow) => sum + getVehicleIncome(String(vehicleRow.id)),
+      0
+    )
+  }, [filteredVehiclesList, filteredTrips, haldaTrips, dateFrom, dateTo, vehicles])
+
+  const visibleVehiclesCosts = useMemo(() => {
+    return filteredVehiclesList.reduce(
+      (sum, vehicleRow) => sum + getVehicleCosts(String(vehicleRow.id)),
+      0
+    )
+  }, [filteredVehiclesList, filteredExpenses])
+
+  const visibleVehiclesProfit = visibleVehiclesIncome - visibleVehiclesCosts
+
+  const selectedMapVehicle = useMemo(() => {
+    return vehicles.find((v) => String(v.id) === String(selectedMapVehicleId)) || null
+  }, [vehicles, selectedMapVehicleId])
+
+  const selectedVehicleLocation = useMemo(() => {
+    return (
+      vehicleLocations.find(
+        (item) => String(item.vehicle_id) === String(selectedMapVehicleId)
+      ) || null
+    )
+  }, [vehicleLocations, selectedMapVehicleId])
+
+  function getVehicleLocation(vehicleId: string) {
+    return vehicleLocations.find((item) => String(item.vehicle_id) === String(vehicleId)) || null
+  }
+
+  function getLatestService(vehicleId: string) {
+    return (
+      expenses.find(
+        (e) => String(e.vehicle_id) === String(vehicleId) && String(e.category) === "Service"
+      ) || null
+    )
+  }
+
+  function exportTripsCSV() {
+    const haldaRows = haldaTrips
+      .filter((h) => {
+        const haldaDate = String(h.created_at || "").slice(0, 10)
+        if (dateFrom && haldaDate < dateFrom) return false
+        if (dateTo && haldaDate > dateTo) return false
+        return true
+      })
+      .map((h) => [
+        String(h.created_at || "").slice(0, 10),
+        "Halda",
+        h.driver_name || "",
+        "Halda",
+        Number(h.amount || 0),
+      ] as (string | number)[])
+
+    downloadCSV(`avenyn_trips_${dateFrom}_${dateTo}.csv`, [
+      ["Datum", "Bil", "Förare", "Källa", "Belopp"],
+      ...filteredTripsList.map((t) => [
+        String(t.created_at || "").slice(0, 10),
+        t.vehicle_name || "",
+        t.driver_name || "",
+        t.source || "",
+        Number(t.amount || 0),
+      ]),
+      ...haldaRows,
+    ])
+  }
+
+  function exportAdvancesCSV() {
+    downloadCSV(`avenyn_advances_${dateFrom}_${dateTo}.csv`, [
+      ["Datum", "Förare", "Notering", "Belopp"],
+      ...filteredAdvancesList.map((a) => [
+        String(a.created_at || "").slice(0, 10),
+        a.driver_name || "",
+        a.note || "",
+        Number(a.amount || 0),
+      ]),
+    ])
+  }
+
+  function exportExpensesCSV() {
+    downloadCSV(`avenyn_kostnader_${dateFrom}_${dateTo}.csv`, [
+      [
+        "Datum",
+        "Bil",
+        "Regnr",
+        "Kategori",
+        "Verkstad/Leverantör",
+        "Belopp",
+        "Nästa service",
+        "Notering",
+      ],
+      ...filteredExpensesList.map((e) => [
+        String(e.expense_date || e.created_at || "").slice(0, 10),
+        e.vehicle_name || "",
+        e.reg || "",
+        e.category || "",
+        e.workshop || "",
+        Number(e.amount || 0),
+        e.next_service_date || "",
+        e.note || "",
+      ]),
+    ])
+  }
+
+  function exportPayrollCSV() {
+    if (!selectedPayrollDriver) return alert("Välj förare först")
+
+    const payrollHaldaIncome = haldaTrips
+      .filter((h) => {
+        const haldaDriver = String(h.driver_name || "").trim()
+        const haldaDate = String(h.created_at || "").slice(0, 10)
+        if (haldaDriver !== String(selectedPayrollDriver || "").trim()) return false
+        if (dateFrom && haldaDate < dateFrom) return false
+        if (dateTo && haldaDate > dateTo) return false
+        return true
+      })
+      .reduce((sum, h) => sum + Number(h.amount || 0), 0)
+
+    downloadCSV(`lonespec_${selectedPayrollDriver}_${dateFrom}_${dateTo}.csv`, [
+      ["Fält", "Värde"],
+      ["Förare", selectedPayrollDriver],
+      ["Period från", dateFrom],
+      ["Period till", dateTo],
+      ["Adress", driverAddress],
+      ["Personnummer", driverPersonalNumber],
+      ["Bank", bankName],
+      ["Kontonummer", bankAccount],
+      ["Vanliga intäkter + Halda", payrollIncome],
+      ["Varav Halda", payrollHaldaIncome],
+      [`Lön ${salaryPercent}%`, payrollSalary],
+      ["Förskott", payrollAdvanceTotal],
+      ["Att betala", payrollNet],
+      ["Kontanter period", Number(cashHandled || 0)],
+      ["Kontantnotering", cashNote],
+    ])
+  }
+
+  function resetPeriod() {
+    setDateFrom(firstDayOfMonth())
+    setDateTo(todayString())
+  }
+
+  function setTodayPeriod() {
+    const today = todayString()
+    setDateFrom(today)
+    setDateTo(today)
+  }
+
+  function setWeekPeriod() {
+    setDateFrom(firstDayOfWeek())
+    setDateTo(todayString())
+  }
+
+  function resetVehicleFilters() {
+    setVehicleSearch("")
+    setVehicleStatusFilter("Alla")
+  }
+
+  function resetTripFilters() {
+    setTripSearch("")
+    setTripSourceFilter("Alla")
+  }
+
+  function resetAdvanceFilters() {
+    setAdvanceSearch("")
+    setAdvanceDriverFilter("Alla")
+  }
+
+  function resetExpenseFilters() {
+    setExpenseSearch("")
+    setExpenseCategoryFilter("Alla")
+    setExpenseVehicleFilter("Alla")
+  }
+
+  return (
+    <>
+      <style>{`
+        @media print {
+          body {
+            background: #ffffff !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+          .payroll-print {
+            display: block !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            background: white !important;
+          }
+          .trip-grid-print {
+            grid-template-columns: 90px 1fr 90px 110px !important;
+          }
+          .summary-grid-print {
+            grid-template-columns: repeat(4, 1fr) !important;
+          }
+        }
+      `}</style>
+
+      <div style={pageStyle}>
+        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+          <div className="no-print" style={heroStyle}>
+            <div style={heroRowStyle}>
+              <div>
+                <div style={{ fontSize: 14, opacity: 0.9, letterSpacing: 1 }}>
+                  AVENYN TAXI
+                </div>
+                <h1 style={{ margin: "8px 0 0 0", fontSize: 34 }}>🚖 Avenyn Taxi</h1>
+                <div style={{ marginTop: 8, opacity: 0.92 }}>
+                  Premium adminsystem för förare, bilar, intäkter, kostnader, GPS tracker och lönespec
+                </div>
+              </div>
+
+              <div style={heroStatsStyle}>
+                <div style={heroMiniCardStyle}>
+                  <div style={heroMiniLabelStyle}>Period</div>
+                  <div style={heroMiniValueStyle}>
+                    {dateFrom} — {dateTo}
+                  </div>
+                </div>
+                <div style={heroMiniCardStyle}>
+                  <div style={heroMiniLabelStyle}>Intäkt</div>
+                  <div style={heroMiniValueStyle}>{money(totalIncome)}</div>
+                </div>
+                <div style={heroMiniCardStyle}>
+                  <div style={heroMiniLabelStyle}>Kostnader</div>
+                  <div style={heroMiniValueStyle}>{money(totalCosts)}</div>
+                </div>
+                <div style={heroMiniCardStyle}>
+                  <div style={heroMiniLabelStyle}>Vinst</div>
+                  <div style={heroMiniValueStyle}>{money(totalProfit)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="no-print" style={{ ...tabBarStyle, justifyContent: "space-between" }}>
+            <div style={tabBarStyle}>
+              {[
+                { key: "dashboard", label: "Dashboard" },
+                { key: "drivers", label: "Förare" },
+                { key: "vehicles", label: "Bilar + GPS" },
+                { key: "trips", label: "Intäkter" },
+                { key: "advances", label: "Förskott" },
+                { key: "costs", label: "Kostnader" },
+                { key: "payroll", label: "Lönespec" },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key as TabKey)}
+                  style={{
+                    ...tabButtonStyle,
+                    ...(activeTab === tab.key ? activeTabButtonStyle : {}),
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button onClick={setTodayPeriod} style={grayButton}>
+                Idag
+              </button>
+              <button onClick={setWeekPeriod} style={grayButton}>
+                Denna vecka
+              </button>
+              <button onClick={resetPeriod} style={grayButton}>
+                Denna månad
+              </button>
+              <button onClick={() => void loadAll()} style={grayButton}>
+                {refreshing ? "Uppdaterar..." : "Uppdatera"}
+              </button>
+            </div>
+          </div>
+
+          {activeTab === "dashboard" && (
+            <>
+              <div className="no-print" style={kpiGridStyle}>
+                <DashboardCard title="Bilar totalt" value={String(vehicles.length)} />
+                <DashboardCard title="Förare totalt" value={String(uniqueDrivers.length)} />
+                <DashboardCard title="Periodens intäkt" value={money(totalIncome)} />
+                <DashboardCard title="Periodens förskott" value={money(totalAdvances)} />
+                <DashboardCard title="Periodens kostnader" value={money(totalCosts)} />
+                <DashboardCard title="Periodens vinst" value={money(totalProfit)} />
+              </div>
+
+              <Section title="Periodfilter">
+                <div style={twoColGrid}>
+                  <div>
+                    <label style={labelStyle}>Från</label>
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Till</label>
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Löneprocent</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.1"
+                      value={salaryPercent}
+                      onChange={(e) => handleSalaryPercentChange(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "end", gap: 10, flexWrap: "wrap" }}>
+                    <button onClick={setTodayPeriod} style={grayButton}>
+                      Idag
+                    </button>
+                    <button onClick={setWeekPeriod} style={grayButton}>
+                      Denna vecka
+                    </button>
+                    <button onClick={resetPeriod} style={blueButton}>
+                      Denna månad
+                    </button>
+                  </div>
+                </div>
+              </Section>
+
+              <Section title="Intäkt per källa">
+                <div style={kpiGridStyle}>
+                  {sourceSummary.map((item) => (
+                    <DashboardCard key={item.source} title={item.source} value={money(item.total)} />
+                  ))}
+                </div>
+              </Section>
+
+              <Section title="Kostnader per kategori">
+                {expenseSummary.length === 0 ? (
+                  <EmptyText text="Inga kostnader ännu." />
+                ) : (
+                  <div style={kpiGridStyle}>
+                    {expenseSummary.map((item) => (
+                      <DashboardCard key={item.category} title={item.category} value={money(item.total)} />
+                    ))}
+                  </div>
+                )}
+              </Section>
+
+              <Section title="Bilstatus">
+                <div style={kpiGridStyle}>
+                  {statusSummary.map((item) => (
+                    <DashboardCard key={item.label} title={item.label} value={String(item.total)} />
+                  ))}
+                </div>
+              </Section>
+
+              <Section title="GPS översikt">
+                <div style={twoColGrid}>
+                  <div style={gpsInfoCardStyle}>
+                    <div style={miniInfoTitleStyle}>Vald bil</div>
+                    <div style={miniInfoValueStyle}>
+                      {selectedMapVehicle ? `${selectedMapVehicle.name} - ${selectedMapVehicle.reg}` : "-"}
+                    </div>
+                  </div>
+                  <div style={gpsInfoCardStyle}>
+                    <div style={miniInfoTitleStyle}>Senaste koordinater</div>
+                    <div style={miniInfoValueStyle}>
+                      {selectedVehicleLocation
+                        ? `${formatCoords(selectedVehicleLocation.lat)}, ${formatCoords(selectedVehicleLocation.lng)}`
+                        : "-"}
+                    </div>
+                  </div>
+                  <div style={gpsInfoCardStyle}>
+                    <div style={miniInfoTitleStyle}>Noggrannhet</div>
+                    <div style={miniInfoValueStyle}>
+                      {selectedVehicleLocation?.accuracy
+                        ? `${Math.round(selectedVehicleLocation.accuracy)} m`
+                        : "-"}
+                    </div>
+                  </div>
+                  <div style={gpsInfoCardStyle}>
+                    <div style={miniInfoTitleStyle}>Hastighet</div>
+                    <div style={miniInfoValueStyle}>{formatSpeed(selectedVehicleLocation?.speed)}</div>
+                  </div>
+                </div>
+              </Section>
+
+              <Section title="Förarsammanställning">
+                {topDrivers.length === 0 ? (
+                  <EmptyText text="Inga data ännu." />
+                ) : (
+                  <div style={{ display: "grid", gap: 12 }}>
+                    {topDrivers.map((item) => (
+                      <div key={item.driverName} style={cardStyle}>
+                        <div style={vehicleRowStyle}>
+                          <div>
+                            <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>
+                              {item.driverName}
+                            </div>
+                            <div style={{ marginTop: 8, color: "#475569" }}>
+                              Inkört: <strong>{money(item.income)}</strong>
+                            </div>
+                            <div style={{ marginTop: 4, color: "#475569" }}>
+                              Lön {salaryPercent}%: <strong>{money(getDriverSalary(item.driverName))}</strong>
+                            </div>
+                            <div style={{ marginTop: 4, color: "#475569" }}>
+                              Förskott: <strong>{money(item.advances)}</strong>
+                            </div>
+                          </div>
+
+                          <div style={{ fontWeight: 800, fontSize: 20, color: "#0b3d91" }}>
+                            {money(item.net)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+            </>
+          )}
+
+          {activeTab === "drivers" && (
+            <>
+              <Section title="Lägg till förare">
+                <div style={{ display: "grid", gap: 12 }}>
+                  <input
+                    type="text"
+                    placeholder="Förarnamn"
+                    value={driverName}
+                    onChange={(e) => setDriverName(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Telefon"
+                    value={driverPhone}
+                    onChange={(e) => setDriverPhone(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <button onClick={() => void addDriver()} disabled={driverLoading} style={blueButton}>
+                    {driverLoading ? "Sparar..." : "Lägg till förare"}
+                  </button>
+                </div>
+              </Section>
+
+              <Section title="Alla förare">
+                <div style={{ marginBottom: 14 }}>
+                  <input
+                    placeholder="Sök förare eller telefon"
+                    value={driverSearch}
+                    onChange={(e) => setDriverSearch(e.target.value)}
+                    style={inputStyle}
+                  />
+                </div>
+
+                {filteredDrivers.length === 0 ? (
+                  <EmptyText text="Inga förare hittades." />
+                ) : (
+                  <div style={{ display: "grid", gap: 12 }}>
+                    {filteredDrivers.map((driverRow) => (
+                      <div key={driverRow.id} style={cardStyle}>
+                        {editingDriverId === String(driverRow.id) ? (
+                          <div style={{ display: "grid", gap: 12 }}>
+                            <input
+                              value={editDriverName}
+                              onChange={(e) => setEditDriverName(e.target.value)}
+                              style={inputStyle}
+                              placeholder="Förarnamn"
+                            />
+                            <input
+                              value={editDriverPhone}
+                              onChange={(e) => setEditDriverPhone(e.target.value)}
+                              style={inputStyle}
+                              placeholder="Telefon"
+                            />
+                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                              <button
+                                onClick={() => void saveDriverEdit(String(driverRow.id))}
+                                disabled={savingDriverEdit}
+                                style={greenButton}
+                              >
+                                {savingDriverEdit ? "Sparar..." : "Spara"}
+                              </button>
+                              <button onClick={cancelEditDriver} style={grayButton}>
+                                Avbryt
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={vehicleRowStyle}>
+                            <div>
+                              <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>
+                                {driverRow.full_name}
+                              </div>
+                              <div style={{ marginTop: 8, color: "#475569" }}>
+                                Telefon: <strong>{driverRow.phone || "-"}</strong>
+                              </div>
+                            </div>
+
+                            <div style={{ display: "flex", gap: 10 }}>
+                              <button
+                                onClick={() => startEditDriver(driverRow)}
+                                style={orangeButtonSmall}
+                              >
+                                Redigera
+                              </button>
+                              <button
+                                onClick={() => void deleteDriver(String(driverRow.id))}
+                                disabled={deletingDriverId === String(driverRow.id)}
+                                style={redButton}
+                              >
+                                {deletingDriverId === String(driverRow.id) ? "Tar bort..." : "Ta bort"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+            </>
+          )}
+
+          {activeTab === "vehicles" && (
+            <>
+              <Section title="Lägg till ny bil">
+                <div style={{ display: "grid", gap: 12 }}>
+                  <input
+                    type="text"
+                    placeholder="Bilnamn"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Regnr"
+                    value={reg}
+                    onChange={(e) => setReg(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <select value={driver} onChange={(e) => setDriver(e.target.value)} style={inputStyle}>
+                    <option value="">Välj förare</option>
+                    {drivers.map((d) => (
+                      <option key={d.id} value={d.full_name}>
+                        {d.full_name}
+                      </option>
+                    ))}
+                  </select>
+                  <select value={status} onChange={(e) => setStatus(e.target.value)} style={inputStyle}>
+                    {STATUS_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                  <button onClick={() => void addVehicle()} disabled={vehicleLoading} style={blueButton}>
+                    {vehicleLoading ? "Sparar..." : "Lägg till bil"}
+                  </button>
+                </div>
+              </Section>
+
+              <Section title="Bilar översikt">
+                <div style={kpiGridStyle}>
+                  <DashboardCard title="Visade bilar" value={String(filteredVehiclesList.length)} />
+                  <DashboardCard title="Totala bilar" value={String(vehicles.length)} />
+                  <DashboardCard title="Intäkt visade bilar" value={money(visibleVehiclesIncome)} />
+                  <DashboardCard title="Kostnad visade bilar" value={money(visibleVehiclesCosts)} />
+                  <DashboardCard title="Vinst visade bilar" value={money(visibleVehiclesProfit)} />
+                  <DashboardCard title="Live tracker" value={trackingVehicleId ? "Aktiv" : "Av"} />
+                </div>
+              </Section>
+
+              <Section title="GPS karta och tracker">
+                <div style={{ display: "grid", gap: 14 }}>
+                  <div style={twoColGrid}>
+                    <div>
+                      <label style={labelStyle}>Välj bil för GPS</label>
+                      <select
+                        value={selectedMapVehicleId}
+                        onChange={(e) => setSelectedMapVehicleId(e.target.value)}
+                        style={inputStyle}
+                      >
+                        <option value="">Välj bil</option>
+                        {vehicles.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name} - {v.reg}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={labelStyle}>GPS status</label>
+                      <div style={gpsStatusBoxStyle}>{gpsStatusText || "Ingen aktiv GPS just nu"}</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <button
+                      onClick={() => void captureVehicleGPS(selectedMapVehicleId)}
+                      disabled={gpsLoading || !selectedMapVehicleId}
+                      style={blueButton}
+                    >
+                      {gpsLoading ? "Hämtar GPS..." : "Spara aktuell GPS-position"}
+                    </button>
+
+                    <button
+                      onClick={() => startLiveTracking(selectedMapVehicleId)}
+                      disabled={!selectedMapVehicleId || trackingVehicleId === selectedMapVehicleId}
+                      style={greenButton}
+                    >
+                      Starta live tracker
+                    </button>
+
+                    <button onClick={stopLiveTracking} disabled={!trackingVehicleId} style={redButton}>
+                      Stoppa tracker
+                    </button>
+
+                    <button onClick={() => void fetchVehicleLocations()} style={grayButton}>
+                      Uppdatera karta
+                    </button>
+                  </div>
+
+                  <div style={gpsCardStyle}>
+                    {selectedVehicleLocation ? (
+                      <>
+                        <iframe
+                          title="GPS karta"
+                          src={mapEmbedUrl(selectedVehicleLocation.lat, selectedVehicleLocation.lng)}
+                          style={mapStyle}
+                        />
+
+                        <div style={gpsDataGridStyle}>
+                          <InfoBox label="Lat" value={formatCoords(selectedVehicleLocation.lat)} />
+                          <InfoBox label="Lng" value={formatCoords(selectedVehicleLocation.lng)} />
+                          <InfoBox
+                            label="Noggrannhet"
+                            value={
+                              selectedVehicleLocation.accuracy
+                                ? `${Math.round(selectedVehicleLocation.accuracy)} m`
+                                : "-"
+                            }
+                          />
+                          <InfoBox label="Hastighet" value={formatSpeed(selectedVehicleLocation.speed)} />
+                          <InfoBox
+                            label="Riktning"
+                            value={
+                              selectedVehicleLocation.heading !== null &&
+                              selectedVehicleLocation.heading !== undefined
+                                ? `${Math.round(Number(selectedVehicleLocation.heading))}°`
+                                : "-"
+                            }
+                          />
+                          <InfoBox
+                            label="Senast uppdaterad"
+                            value={
+                              selectedVehicleLocation.updated_at
+                                ? new Date(selectedVehicleLocation.updated_at).toLocaleString("sv-SE")
+                                : "-"
+                            }
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <EmptyText text="Ingen GPS-position sparad ännu för vald bil." />
+                    )}
+                  </div>
+                </div>
+              </Section>
+
+              <Section title="Alla bilar">
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 12,
+                    marginBottom: 14,
+                    gridTemplateColumns: "2fr 1fr auto",
+                  }}
+                >
+                  <input
+                    placeholder="Sök bil, regnr, förare eller status"
+                    value={vehicleSearch}
+                    onChange={(e) => setVehicleSearch(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <select
+                    value={vehicleStatusFilter}
+                    onChange={(e) => setVehicleStatusFilter(e.target.value)}
+                    style={inputStyle}
+                  >
+                    <option value="Alla">Alla statusar</option>
+                    {STATUS_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                  <button onClick={resetVehicleFilters} style={grayButton}>
+                    Rensa
+                  </button>
+                </div>
+
+                {filteredVehiclesList.length === 0 ? (
+                  <EmptyText text="Inga bilar hittades." />
+                ) : (
+                  <div style={{ display: "grid", gap: 12 }}>
+                    {filteredVehiclesList.map((vehicleRow) => {
+                      const location = getVehicleLocation(String(vehicleRow.id))
+                      const latestService = getLatestService(String(vehicleRow.id))
+                      const vehicleIncome = getVehicleIncome(String(vehicleRow.id))
+                      const vehicleCosts = getVehicleCosts(String(vehicleRow.id))
+                      const vehicleProfit = getVehicleProfit(String(vehicleRow.id))
+
+                      return (
+                        <div key={vehicleRow.id} style={cardStyle}>
+                          {editingVehicleId === String(vehicleRow.id) ? (
+                            <div style={{ display: "grid", gap: 12 }}>
+                              <input
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                style={inputStyle}
+                                placeholder="Bilnamn"
+                              />
+                              <input
+                                value={editReg}
+                                onChange={(e) => setEditReg(e.target.value)}
+                                style={inputStyle}
+                                placeholder="Regnr"
+                              />
+                              <select
+                                value={editDriver}
+                                onChange={(e) => setEditDriver(e.target.value)}
+                                style={inputStyle}
+                              >
+                                <option value="">Välj förare</option>
+                                {drivers.map((d) => (
+                                  <option key={d.id} value={d.full_name}>
+                                    {d.full_name}
+                                  </option>
+                                ))}
+                              </select>
+                              <select
+                                value={editStatus}
+                                onChange={(e) => setEditStatus(e.target.value)}
+                                style={inputStyle}
+                              >
+                                {STATUS_OPTIONS.map((item) => (
+                                  <option key={item} value={item}>
+                                    {item}
+                                  </option>
+                                ))}
+                              </select>
+
+                              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                                <button
+                                  onClick={() => void saveVehicleEdit(String(vehicleRow.id))}
+                                  disabled={savingVehicleEdit}
+                                  style={greenButton}
+                                >
+                                  {savingVehicleEdit ? "Sparar..." : "Spara"}
+                                </button>
+                                <button onClick={cancelEditVehicle} style={grayButton}>
+                                  Avbryt
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={vehicleRowStyle}>
+                              <div>
+                                <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>
+                                  {vehicleRow.name} - {vehicleRow.reg}
+                                </div>
+                                <div style={{ marginTop: 8, color: "#475569" }}>
+                                  Förare: <strong>{vehicleRow.driver || "Ingen"}</strong>
+                                </div>
+                                <div style={{ marginTop: 6, color: "#475569" }}>
+                                  Intäkt: <strong>{money(vehicleIncome)}</strong>
+                                </div>
+                                <div style={{ marginTop: 6, color: "#475569" }}>
+                                  Kostnader: <strong>{money(vehicleCosts)}</strong>
+                                </div>
+                                <div style={{ marginTop: 6, color: "#475569" }}>
+                                  Vinst: <strong>{money(vehicleProfit)}</strong>
+                                </div>
+                                <div style={{ marginTop: 6, color: "#475569" }}>
+                                  Senaste service:{" "}
+                                  <strong>
+                                    {latestService
+                                      ? `${formatDate(
+                                          latestService.expense_date || latestService.created_at
+                                        )} • ${latestService.category}`
+                                      : "Ingen service registrerad"}
+                                  </strong>
+                                </div>
+                                <div style={{ marginTop: 6, color: "#475569" }}>
+                                  Nästa service:{" "}
+                                  <strong>
+                                    {latestService?.next_service_date
+                                      ? formatDate(latestService.next_service_date)
+                                      : "-"}
+                                  </strong>
+                                </div>
+                                <div style={{ marginTop: 6, color: "#475569" }}>
+                                  GPS:{" "}
+                                  <strong>
+                                    {location
+                                      ? `${formatCoords(location.lat)}, ${formatCoords(location.lng)}`
+                                      : "Ingen position"}
+                                  </strong>
+                                </div>
+                                <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                  <span style={statusBadge(vehicleRow.status || "Aktiv")}>
+                                    {vehicleRow.status || "Aktiv"}
+                                  </span>
+                                  {trackingVehicleId === String(vehicleRow.id) ? (
+                                    <span style={liveBadgeStyle}>Live</span>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                                <button
+                                  onClick={() => {
+                                    setSelectedMapVehicleId(String(vehicleRow.id))
+                                    void captureVehicleGPS(String(vehicleRow.id))
+                                  }}
+                                  style={blueButtonSmall}
+                                >
+                                  GPS nu
+                                </button>
+                                <button
+                                  onClick={() => startEditVehicle(vehicleRow)}
+                                  style={orangeButtonSmall}
+                                >
+                                  Redigera
+                                </button>
+                                <button
+                                  onClick={() => void deleteVehicle(String(vehicleRow.id))}
+                                  disabled={deletingVehicleId === String(vehicleRow.id)}
+                                  style={redButton}
+                                >
+                                  {deletingVehicleId === String(vehicleRow.id) ? "Tar bort..." : "Ta bort"}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </Section>
+            </>
+          )}
+
+          {activeTab === "trips" && (
+            <>
+              <Section title="Lägg till intäkt">
+                <div style={{ display: "grid", gap: 12 }}>
+                  <select
+                    value={tripVehicleId}
+                    onChange={(e) => setTripVehicleId(e.target.value)}
+                    style={inputStyle}
+                  >
+                    <option value="">Välj bil</option>
+                    {vehicles.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name} - {v.reg}
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="number"
+                    placeholder="Belopp"
+                    value={tripAmount}
+                    onChange={(e) => setTripAmount(e.target.value)}
+                    style={inputStyle}
+                  />
+
+                  <select
+                    value={tripSource}
+                    onChange={(e) => setTripSource(e.target.value)}
+                    style={inputStyle}
+                  >
+                    {SOURCE_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button onClick={() => void addTrip()} disabled={tripLoading} style={greenButton}>
+                    {tripLoading ? "Sparar..." : "Lägg till intäkt"}
+                  </button>
+                </div>
+              </Section>
+
+              <Section title="Alla intäkter i vald period">
+                <div style={kpiGridStyle}>
+                  <DashboardCard title="Antal intäkter" value={String(filteredTrips.length + totalHaldaIncome > 0 ? filteredTrips.length : filteredTrips.length)} />
+                  <DashboardCard title="Totalt inkört" value={money(totalIncome)} />
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 12,
+                    marginBottom: 14,
+                    gridTemplateColumns: "2fr 1fr auto auto",
+                  }}
+                >
+                  <input
+                    placeholder="Sök bil, förare, källa, datum eller belopp"
+                    value={tripSearch}
+                    onChange={(e) => setTripSearch(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <select
+                    value={tripSourceFilter}
+                    onChange={(e) => setTripSourceFilter(e.target.value)}
+                    style={inputStyle}
+                  >
+                    <option value="Alla">Alla källor</option>
+                    {SOURCE_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                  <button onClick={resetTripFilters} style={grayButton}>
+                    Rensa
+                  </button>
+                  <button onClick={exportTripsCSV} style={grayButton}>
+                    Export CSV
+                  </button>
+                </div>
+
+                {filteredTripsList.length === 0 ? (
+                  <EmptyText text="Inga intäkter hittades." />
+                ) : (
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {filteredTripsList.map((trip) => (
+                      <div key={trip.id} style={cardStyle}>
+                        {editingTripId === String(trip.id) ? (
+                          <div style={{ display: "grid", gap: 12 }}>
+                            <select
+                              value={editTripVehicleId}
+                              onChange={(e) => setEditTripVehicleId(e.target.value)}
+                              style={inputStyle}
+                            >
+                              <option value="">Välj bil</option>
+                              {vehicles.map((v) => (
+                                <option key={v.id} value={v.id}>
+                                  {v.name} - {v.reg}
+                                </option>
+                              ))}
+                            </select>
+
+                            <input
+                              type="number"
+                              placeholder="Belopp"
+                              value={editTripAmount}
+                              onChange={(e) => setEditTripAmount(e.target.value)}
+                              style={inputStyle}
+                            />
+
+                            <select
+                              value={editTripSource}
+                              onChange={(e) => setEditTripSource(e.target.value)}
+                              style={inputStyle}
+                            >
+                              {SOURCE_OPTIONS.map((item) => (
+                                <option key={item} value={item}>
+                                  {item}
+                                </option>
+                              ))}
+                            </select>
+
+                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                              <button
+                                onClick={() => void saveTripEdit(String(trip.id))}
+                                disabled={savingTripEdit}
+                                style={greenButton}
+                              >
+                                {savingTripEdit ? "Sparar..." : "Spara"}
+                              </button>
+                              <button onClick={cancelEditTrip} style={grayButton}>
+                                Avbryt
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={vehicleRowStyle}>
+                            <div>
+                              <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>
+                                {trip.vehicle_name || "Bil"}
+                              </div>
+                              <div style={{ marginTop: 8, color: "#475569" }}>
+                                {trip.driver_name || "-"} • {trip.source || "-"}
+                              </div>
+                              <div style={{ marginTop: 6, color: "#475569" }}>
+                                Datum: {String(trip.created_at || "").slice(0, 10)}
+                              </div>
+                            </div>
+
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                              <strong style={{ fontSize: 18 }}>{money(Number(trip.amount || 0))}</strong>
+                              <button onClick={() => startEditTrip(trip)} style={orangeButtonSmall}>
+                                Redigera
+                              </button>
+                              <button
+                                onClick={() => void deleteTrip(String(trip.id))}
+                                disabled={deletingTripId === String(trip.id)}
+                                style={redButton}
+                              >
+                                {deletingTripId === String(trip.id) ? "Tar bort..." : "Ta bort"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+            </>
+          )}
+
+          {activeTab === "advances" && (
+            <>
+              <Section title="Lägg till förskott">
+                <div style={{ display: "grid", gap: 12 }}>
+                  <select
+                    value={advanceDriverName}
+                    onChange={(e) => setAdvanceDriverName(e.target.value)}
+                    style={inputStyle}
+                  >
+                    <option value="">Välj förare</option>
+                    {uniqueDrivers.map((driverNameItem) => (
+                      <option key={driverNameItem} value={driverNameItem}>
+                        {driverNameItem}
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="number"
+                    placeholder="Förskott, t.ex. 1000"
+                    value={advanceAmount}
+                    onChange={(e) => setAdvanceAmount(e.target.value)}
+                    style={inputStyle}
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="Notering, t.ex. förskott vecka 1"
+                    value={advanceNote}
+                    onChange={(e) => setAdvanceNote(e.target.value)}
+                    style={inputStyle}
+                  />
+
+                  <button onClick={() => void addAdvance()} disabled={advanceLoading} style={orangeButton}>
+                    {advanceLoading ? "Sparar..." : "Lägg till förskott"}
+                  </button>
+                </div>
+              </Section>
+
+              <Section title="Alla förskott i vald period">
+                <div style={kpiGridStyle}>
+                  <DashboardCard title="Antal förskott" value={String(filteredAdvances.length)} />
+                  <DashboardCard title="Totalt förskott" value={money(totalAdvances)} />
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 12,
+                    marginBottom: 14,
+                    gridTemplateColumns: "2fr 1fr auto auto",
+                  }}
+                >
+                  <input
+                    placeholder="Sök förare, notering, datum eller belopp"
+                    value={advanceSearch}
+                    onChange={(e) => setAdvanceSearch(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <select
+                    value={advanceDriverFilter}
+                    onChange={(e) => setAdvanceDriverFilter(e.target.value)}
+                    style={inputStyle}
+                  >
+                    <option value="Alla">Alla förare</option>
+                    {uniqueDrivers.map((driverNameItem) => (
+                      <option key={driverNameItem} value={driverNameItem}>
+                        {driverNameItem}
+                      </option>
+                    ))}
+                  </select>
+                  <button onClick={resetAdvanceFilters} style={grayButton}>
+                    Rensa
+                  </button>
+                  <button onClick={exportAdvancesCSV} style={grayButton}>
+                    Export CSV
+                  </button>
+                </div>
+
+                {filteredAdvancesList.length === 0 ? (
+                  <EmptyText text="Inga förskott hittades." />
+                ) : (
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {filteredAdvancesList.map((item) => (
+                      <div key={item.id} style={cardStyle}>
+                        {editingAdvanceId === String(item.id) ? (
+                          <div style={{ display: "grid", gap: 12 }}>
+                            <select
+                              value={editAdvanceDriverName}
+                              onChange={(e) => setEditAdvanceDriverName(e.target.value)}
+                              style={inputStyle}
+                            >
+                              <option value="">Välj förare</option>
+                              {uniqueDrivers.map((driverNameItem) => (
+                                <option key={driverNameItem} value={driverNameItem}>
+                                  {driverNameItem}
+                                </option>
+                              ))}
+                            </select>
+
+                            <input
+                              type="number"
+                              placeholder="Belopp"
+                              value={editAdvanceAmount}
+                              onChange={(e) => setEditAdvanceAmount(e.target.value)}
+                              style={inputStyle}
+                            />
+
+                            <input
+                              type="text"
+                              placeholder="Notering"
+                              value={editAdvanceNote}
+                              onChange={(e) => setEditAdvanceNote(e.target.value)}
+                              style={inputStyle}
+                            />
+
+                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                              <button
+                                onClick={() => void saveAdvanceEdit(String(item.id))}
+                                disabled={savingAdvanceEdit}
+                                style={greenButton}
+                              >
+                                {savingAdvanceEdit ? "Sparar..." : "Spara"}
+                              </button>
+                              <button onClick={cancelEditAdvance} style={grayButton}>
+                                Avbryt
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={vehicleRowStyle}>
+                            <div>
+                              <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>
+                                {item.driver_name}
+                              </div>
+                              <div style={{ marginTop: 8, color: "#475569" }}>
+                                {item.note || "Förskott"}
+                              </div>
+                              <div style={{ marginTop: 6, color: "#475569" }}>
+                                Datum: {String(item.created_at || "").slice(0, 10)}
+                              </div>
+                            </div>
+
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                              <strong style={{ fontSize: 18 }}>
+                                - {money(Number(item.amount || 0))}
+                              </strong>
+                              <button onClick={() => startEditAdvance(item)} style={orangeButtonSmall}>
+                                Redigera
+                              </button>
+                              <button
+                                onClick={() => void deleteAdvance(String(item.id))}
+                                disabled={deletingAdvanceId === String(item.id)}
+                                style={redButton}
+                              >
+                                {deletingAdvanceId === String(item.id) ? "Tar bort..." : "Ta bort"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+            </>
+          )}
+
+          {activeTab === "costs" && (
+            <>
+              <Section title="Lägg till kostnad / service">
+                <div style={{ display: "grid", gap: 12 }}>
+                  <select
+                    value={expenseVehicleId}
+                    onChange={(e) => setExpenseVehicleId(e.target.value)}
+                    style={inputStyle}
+                  >
+                    <option value="">Välj bil</option>
+                    {vehicles.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name} - {v.reg}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={expenseCategory}
+                    onChange={(e) => setExpenseCategory(e.target.value)}
+                    style={inputStyle}
+                  >
+                    {EXPENSE_CATEGORY_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="number"
+                    placeholder="Kostnad"
+                    value={expenseAmount}
+                    onChange={(e) => setExpenseAmount(e.target.value)}
+                    style={inputStyle}
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="Verkstad / leverantör"
+                    value={expenseWorkshop}
+                    onChange={(e) => setExpenseWorkshop(e.target.value)}
+                    style={inputStyle}
+                  />
+
+                  <input
+                    type="date"
+                    value={expenseDate}
+                    onChange={(e) => setExpenseDate(e.target.value)}
+                    style={inputStyle}
+                  />
+
+                  {expenseCategory === "Service" ? (
+                    <input
+                      type="date"
+                      value={nextServiceDate}
+                      onChange={(e) => setNextServiceDate(e.target.value)}
+                      style={inputStyle}
+                    />
+                  ) : null}
+
+                  <input
+                    type="text"
+                    placeholder="Notering"
+                    value={expenseNote}
+                    onChange={(e) => setExpenseNote(e.target.value)}
+                    style={inputStyle}
+                  />
+
+                  <button onClick={() => void addExpense()} disabled={expenseLoading} style={blueButton}>
+                    {expenseLoading ? "Sparar..." : "Lägg till kostnad"}
+                  </button>
+                </div>
+              </Section>
+
+              <Section title="Kostnadsöversikt">
+                <div style={kpiGridStyle}>
+                  <DashboardCard title="Antal kostnader" value={String(filteredExpenses.length)} />
+                  <DashboardCard title="Totala kostnader" value={money(totalCosts)} />
+                  <DashboardCard title="Totala intäkter" value={money(totalIncome)} />
+                  <DashboardCard title="Vinst efter kostnader" value={money(totalProfit)} />
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 12,
+                    marginBottom: 14,
+                    gridTemplateColumns: "2fr 1fr 1fr auto auto",
+                  }}
+                >
+                  <input
+                    placeholder="Sök bil, regnr, kategori, verkstad, datum eller belopp"
+                    value={expenseSearch}
+                    onChange={(e) => setExpenseSearch(e.target.value)}
+                    style={inputStyle}
+                  />
+
+                  <select
+                    value={expenseCategoryFilter}
+                    onChange={(e) => setExpenseCategoryFilter(e.target.value)}
+                    style={inputStyle}
+                  >
+                    <option value="Alla">Alla kategorier</option>
+                    {EXPENSE_CATEGORY_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={expenseVehicleFilter}
+                    onChange={(e) => setExpenseVehicleFilter(e.target.value)}
+                    style={inputStyle}
+                  >
+                    <option value="Alla">Alla bilar</option>
+                    {vehicles.map((v) => (
+                      <option key={v.id} value={v.name}>
+                        {v.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button onClick={resetExpenseFilters} style={grayButton}>
+                    Rensa
+                  </button>
+
+                  <button onClick={exportExpensesCSV} style={grayButton}>
+                    Export CSV
+                  </button>
+                </div>
+
+                {filteredExpensesList.length === 0 ? (
+                  <EmptyText text="Inga kostnader hittades." />
+                ) : (
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {filteredExpensesList.map((item) => (
+                      <div key={item.id} style={cardStyle}>
+                        {editingExpenseId === String(item.id) ? (
+                          <div style={{ display: "grid", gap: 12 }}>
+                            <select
+                              value={editExpenseVehicleId}
+                              onChange={(e) => setEditExpenseVehicleId(e.target.value)}
+                              style={inputStyle}
+                            >
+                              <option value="">Välj bil</option>
+                              {vehicles.map((v) => (
+                                <option key={v.id} value={v.id}>
+                                  {v.name} - {v.reg}
+                                </option>
+                              ))}
+                            </select>
+
+                            <select
+                              value={editExpenseCategory}
+                              onChange={(e) => setEditExpenseCategory(e.target.value)}
+                              style={inputStyle}
+                            >
+                              {EXPENSE_CATEGORY_OPTIONS.map((cat) => (
+                                <option key={cat} value={cat}>
+                                  {cat}
+                                </option>
+                              ))}
+                            </select>
+
+                            <input
+                              type="number"
+                              placeholder="Kostnad"
+                              value={editExpenseAmount}
+                              onChange={(e) => setEditExpenseAmount(e.target.value)}
+                              style={inputStyle}
+                            />
+
+                            <input
+                              type="text"
+                              placeholder="Verkstad / leverantör"
+                              value={editExpenseWorkshop}
+                              onChange={(e) => setEditExpenseWorkshop(e.target.value)}
+                              style={inputStyle}
+                            />
+
+                            <input
+                              type="date"
+                              value={editExpenseDate}
+                              onChange={(e) => setEditExpenseDate(e.target.value)}
+                              style={inputStyle}
+                            />
+
+                            {editExpenseCategory === "Service" ? (
+                              <input
+                                type="date"
+                                value={editNextServiceDate}
+                                onChange={(e) => setEditNextServiceDate(e.target.value)}
+                                style={inputStyle}
+                              />
+                            ) : null}
+
+                            <input
+                              type="text"
+                              placeholder="Notering"
+                              value={editExpenseNote}
+                              onChange={(e) => setEditExpenseNote(e.target.value)}
+                              style={inputStyle}
+                            />
+
+                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                              <button
+                                onClick={() => void saveExpenseEdit(String(item.id))}
+                                disabled={savingExpenseEdit}
+                                style={greenButton}
+                              >
+                                {savingExpenseEdit ? "Sparar..." : "Spara"}
+                              </button>
+                              <button onClick={cancelEditExpense} style={grayButton}>
+                                Avbryt
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={vehicleRowStyle}>
+                            <div>
+                              <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>
+                                {item.vehicle_name || "Bil"} - {item.reg || "-"}
+                              </div>
+                              <div style={{ marginTop: 8, color: "#475569" }}>
+                                {item.category || "Övrigt"}
+                                {item.workshop ? ` • ${item.workshop}` : ""}
+                              </div>
+                              <div style={{ marginTop: 6, color: "#475569" }}>
+                                Datum: {formatDate(item.expense_date || item.created_at)}
+                              </div>
+                              {item.category === "Service" ? (
+                                <div style={{ marginTop: 6, color: "#475569" }}>
+                                  Nästa service: {formatDate(item.next_service_date)}
+                                </div>
+                              ) : null}
+                              <div style={{ marginTop: 6, color: "#475569" }}>
+                                {item.note || "Ingen notering"}
+                              </div>
+                            </div>
+
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                              <strong style={{ fontSize: 18, color: "#b91c1c" }}>
+                                - {money(Number(item.amount || 0))}
+                              </strong>
+                              <button onClick={() => startEditExpense(item)} style={orangeButtonSmall}>
+                                Redigera
+                              </button>
+                              <button
+                                onClick={() => void deleteExpense(String(item.id))}
+                                disabled={deletingExpenseId === String(item.id)}
+                                style={redButton}
+                              >
+                                {deletingExpenseId === String(item.id) ? "Tar bort..." : "Ta bort"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+            </>
+          )}
+
+          {activeTab === "payroll" && (
+            <>
+              <Section title="Förare uppgifter för lönespec">
+                <div style={twoColGrid}>
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <label style={labelStyle}>Vald förare</label>
+                    <select
+                      value={selectedPayrollDriver}
+                      onChange={(e) => setSelectedPayrollDriver(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">Välj förare</option>
+                      {uniqueDrivers.map((driverNameItem) => (
+                        <option key={driverNameItem} value={driverNameItem}>
+                          {driverNameItem}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Löneprocent</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.1"
+                      value={salaryPercent}
+                      onChange={(e) => handleSalaryPercentChange(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Full adress</label>
+                    <input
+                      value={driverAddress}
+                      onChange={(e) => setDriverAddress(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Personnummer</label>
+                    <input
+                      value={driverPersonalNumber}
+                      onChange={(e) => setDriverPersonalNumber(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Bank</label>
+                    <input
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Kontonummer</label>
+                    <input
+                      value={bankAccount}
+                      onChange={(e) => setBankAccount(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <
