@@ -25,6 +25,8 @@ import {
   Printer,
   LogOut,
   ShieldCheck,
+  CalendarDays,
+  Route,
 } from "lucide-react";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -58,6 +60,7 @@ const COST_TYPE_OPTIONS = [
   "Skatt",
   "Övrigt",
 ] as const;
+const BOOKING_STATUS_OPTIONS = ["Ny", "Tilldelad", "På väg", "Hämtad", "Klar", "Avbokad"] as const;
 
 const DEFAULT_SALARY_PERCENT = 33;
 const DEFAULT_CASH_NOTE = "Kontanthantering påverkar ej lönen, endast informationsrad";
@@ -168,9 +171,30 @@ type ProfileRecord = {
   email: string | null;
 };
 
+type Booking = {
+  id: string;
+  customer_name: string;
+  customer_phone: string | null;
+  pickup_address: string;
+  dropoff_address: string | null;
+  booking_time: string;
+  status: string;
+  driver_id: string | null;
+  vehicle_id: string | null;
+  note: string | null;
+  price: number | null;
+  created_at?: string;
+};
+
 function todayString() {
   const d = new Date();
   return d.toISOString().slice(0, 10);
+}
+
+function nowDateTimeLocalString() {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function firstDayOfMonth() {
@@ -251,6 +275,7 @@ export default function Page() {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [profileRecord, setProfileRecord] = useState<ProfileRecord | null>(null);
+  const [currentDriver, setCurrentDriver] = useState<Driver | null>(null);
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -264,6 +289,7 @@ export default function Page() {
   const [locations, setLocations] = useState<VehicleLocation[]>([]);
   const [haldaRows, setHaldaRows] = useState<HaldaImportRow[]>([]);
   const [allProfiles, setAllProfiles] = useState<ProfileRecord[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
 
   const [fromDate, setFromDate] = useState(firstDayOfMonth());
   const [toDate, setToDate] = useState(todayString());
@@ -316,9 +342,21 @@ export default function Page() {
 
   const [editingDriverId, setEditingDriverId] = useState<string | null>(null);
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
+  const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
 
   const [selectedUser, setSelectedUser] = useState("");
   const [selectedLinkDriverId, setSelectedLinkDriverId] = useState("");
+
+  const [bookingCustomerName, setBookingCustomerName] = useState("");
+  const [bookingCustomerPhone, setBookingCustomerPhone] = useState("");
+  const [bookingPickupAddress, setBookingPickupAddress] = useState("");
+  const [bookingDropoffAddress, setBookingDropoffAddress] = useState("");
+  const [bookingDateTime, setBookingDateTime] = useState(nowDateTimeLocalString());
+  const [bookingStatus, setBookingStatus] = useState<string>("Ny");
+  const [bookingDriverId, setBookingDriverId] = useState<string>("");
+  const [bookingVehicleId, setBookingVehicleId] = useState<string>("");
+  const [bookingNote, setBookingNote] = useState("");
+  const [bookingPrice, setBookingPrice] = useState<number>(0);
 
   useEffect(() => {
     init();
@@ -332,15 +370,8 @@ export default function Page() {
       if (!nextUser) {
         setRole(null);
         setProfileRecord(null);
-        setDrivers([]);
-        setVehicles([]);
-        setTrips([]);
-        setAdvances([]);
-        setCosts([]);
-        setDriverProfiles([]);
-        setLocations([]);
-        setHaldaRows([]);
-        setAllProfiles([]);
+        setCurrentDriver(null);
+        resetAllData();
         setLoading(false);
         setBootLoading(false);
         return;
@@ -357,6 +388,19 @@ export default function Page() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  function resetAllData() {
+    setDrivers([]);
+    setVehicles([]);
+    setTrips([]);
+    setAdvances([]);
+    setCosts([]);
+    setDriverProfiles([]);
+    setLocations([]);
+    setHaldaRows([]);
+    setAllProfiles([]);
+    setBookings([]);
+  }
 
   async function init() {
     try {
@@ -406,9 +450,7 @@ export default function Page() {
 
     if (!profileRes.data) {
       setLoading(false);
-      throw new Error(
-        "Ingen profil hittades för den inloggade användaren i public.profiles."
-      );
+      throw new Error("Ingen profil hittades för den inloggade användaren i public.profiles.");
     }
 
     const currentProfile = profileRes.data as ProfileRecord;
@@ -428,6 +470,7 @@ export default function Page() {
         locationsRes,
         haldaRes,
         allProfilesRes,
+        bookingsRes,
       ] = await Promise.all([
         supabase.from("drivers").select("*").order("full_name", { ascending: true }),
         supabase.from("vehicles").select("*").order("created_at", { ascending: false }),
@@ -437,10 +480,8 @@ export default function Page() {
         supabase.from("driver_profiles").select("*").order("created_at", { ascending: true }),
         supabase.from("vehicle_locations").select("*").order("updated_at", { ascending: false }),
         supabase.from("halda_import_rows").select("*").order("trip_date", { ascending: false }),
-        supabase
-          .from("profiles")
-          .select("id, full_name, role, status, created_at, email")
-          .order("created_at", { ascending: true }),
+        supabase.from("profiles").select("id, full_name, role, status, created_at, email").order("created_at", { ascending: true }),
+        supabase.from("bookings").select("*").order("booking_time", { ascending: false }),
       ]);
 
       const allErrors = [
@@ -453,6 +494,7 @@ export default function Page() {
         locationsRes.error,
         haldaRes.error,
         allProfilesRes.error,
+        bookingsRes.error,
       ].filter(Boolean);
 
       if (allErrors.length) {
@@ -462,33 +504,35 @@ export default function Page() {
 
       const d = (driversRes.data || []) as Driver[];
       const v = (vehiclesRes.data || []) as Vehicle[];
-      const p = (profilesRes.data || []) as DriverProfile[];
+      const dp = (profilesRes.data || []) as DriverProfile[];
       const authProfiles = (allProfilesRes.data || []) as ProfileRecord[];
 
+      setCurrentDriver(null);
       setDrivers(d);
       setVehicles(v);
       setTrips((tripsRes.data || []) as Trip[]);
       setAdvances((advancesRes.data || []) as Advance[]);
       setCosts((costsRes.data || []) as Cost[]);
-      setDriverProfiles(p);
+      setDriverProfiles(dp);
       setLocations((locationsRes.data || []) as VehicleLocation[]);
       setHaldaRows((haldaRes.data || []) as HaldaImportRow[]);
       setAllProfiles(authProfiles);
+      setBookings((bookingsRes.data || []) as Booking[]);
 
       if (!advanceDriverId && d[0]?.id) setAdvanceDriverId(d[0].id);
       if (!selectedPayrollDriverId && d[0]?.id) setSelectedPayrollDriverId(d[0].id);
       if (!tripDriverId && d[0]?.id) setTripDriverId(d[0].id);
       if (!vehicleDriverId && d[0]?.id) setVehicleDriverId(d[0].id);
       if (!haldaDriverId && d[0]?.id) setHaldaDriverId(d[0].id);
-      if (!profileForm.driver_id && d[0]?.id) {
-        setProfileForm((prev) => ({ ...prev, driver_id: d[0].id }));
-      }
+      if (!profileForm.driver_id && d[0]?.id) setProfileForm((prev) => ({ ...prev, driver_id: d[0].id }));
       if (!selectedLinkDriverId && d[0]?.id) setSelectedLinkDriverId(d[0].id);
+      if (!bookingDriverId && d[0]?.id) setBookingDriverId(d[0].id);
 
       if (!tripVehicleId && v[0]?.id) setTripVehicleId(v[0].id);
       if (!costVehicleId && v[0]?.id) setCostVehicleId(v[0].id);
       if (!selectedTrackerVehicleId && v[0]?.id) setSelectedTrackerVehicleId(v[0].id);
       if (!haldaVehicleId && v[0]?.id) setHaldaVehicleId(v[0].id);
+      if (!bookingVehicleId && v[0]?.id) setBookingVehicleId(v[0].id);
 
       if (!selectedUser && authProfiles[0]?.id) setSelectedUser(authProfiles[0].id);
     } else {
@@ -503,18 +547,11 @@ export default function Page() {
         throw driverRes.error;
       }
 
-      const currentDriver = (driverRes.data || null) as Driver | null;
+      const resolvedDriver = (driverRes.data || null) as Driver | null;
+      setCurrentDriver(resolvedDriver);
 
-      if (!currentDriver) {
-        setDrivers([]);
-        setVehicles([]);
-        setTrips([]);
-        setAdvances([]);
-        setCosts([]);
-        setDriverProfiles([]);
-        setLocations([]);
-        setHaldaRows([]);
-        setAllProfiles([]);
+      if (!resolvedDriver) {
+        resetAllData();
         setLoading(false);
         return;
       }
@@ -523,38 +560,29 @@ export default function Page() {
         vehiclesRes,
         tripsRes,
         advancesRes,
-        profilesRes,
+        driverProfilesRes,
         locationsRes,
+        bookingsRes,
       ] = await Promise.all([
-        supabase
-          .from("vehicles")
-          .select("*")
-          .eq("driver_id", currentDriver.id)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("trips")
-          .select("*")
-          .eq("driver_id", currentDriver.id)
-          .order("trip_date", { ascending: false }),
-        supabase
-          .from("advances")
-          .select("*")
-          .eq("driver_id", currentDriver.id)
-          .order("advance_date", { ascending: false }),
-        supabase
-          .from("driver_profiles")
-          .select("*")
-          .eq("driver_id", currentDriver.id)
-          .order("created_at", { ascending: true }),
+        supabase.from("vehicles").select("*").eq("driver_id", resolvedDriver.id).order("created_at", { ascending: false }),
+        supabase.from("trips").select("*").eq("driver_id", resolvedDriver.id).order("trip_date", { ascending: false }),
+        supabase.from("advances").select("*").eq("driver_id", resolvedDriver.id).order("advance_date", { ascending: false }),
+        supabase.from("driver_profiles").select("*").eq("driver_id", resolvedDriver.id).order("created_at", { ascending: true }),
         supabase.from("vehicle_locations").select("*").order("updated_at", { ascending: false }),
+        supabase
+          .from("bookings")
+          .select("*")
+          .or(`driver_id.eq.${resolvedDriver.id},vehicle_id.in.(${resolvedDriver.id})`)
+          .order("booking_time", { ascending: false }),
       ]);
 
       const allErrors = [
         vehiclesRes.error,
         tripsRes.error,
         advancesRes.error,
-        profilesRes.error,
+        driverProfilesRes.error,
         locationsRes.error,
+        bookingsRes.error,
       ].filter(Boolean);
 
       if (allErrors.length) {
@@ -563,26 +591,34 @@ export default function Page() {
       }
 
       const v = (vehiclesRes.data || []) as Vehicle[];
+      const vehicleIds = v.map((x) => x.id);
 
-      setDrivers([currentDriver]);
+      const filteredBookings = ((bookingsRes.data || []) as Booking[]).filter(
+        (b) => b.driver_id === resolvedDriver.id || (!!b.vehicle_id && vehicleIds.includes(b.vehicle_id))
+      );
+
+      setDrivers([resolvedDriver]);
       setVehicles(v);
       setTrips((tripsRes.data || []) as Trip[]);
       setAdvances((advancesRes.data || []) as Advance[]);
       setCosts([]);
-      setDriverProfiles((profilesRes.data || []) as DriverProfile[]);
+      setDriverProfiles((driverProfilesRes.data || []) as DriverProfile[]);
       setLocations((locationsRes.data || []) as VehicleLocation[]);
       setHaldaRows([]);
       setAllProfiles([]);
+      setBookings(filteredBookings);
 
-      setAdvanceDriverId(currentDriver.id);
-      setSelectedPayrollDriverId(currentDriver.id);
-      setTripDriverId(currentDriver.id);
-      setVehicleDriverId(currentDriver.id);
-      setProfileForm((prev) => ({ ...prev, driver_id: currentDriver.id }));
+      setAdvanceDriverId(resolvedDriver.id);
+      setSelectedPayrollDriverId(resolvedDriver.id);
+      setTripDriverId(resolvedDriver.id);
+      setVehicleDriverId(resolvedDriver.id);
+      setBookingDriverId(resolvedDriver.id);
+      setProfileForm((prev) => ({ ...prev, driver_id: resolvedDriver.id }));
 
       if (v[0]?.id) {
         setTripVehicleId((prev) => prev || v[0].id);
         setSelectedTrackerVehicleId((prev) => prev || v[0].id);
+        setBookingVehicleId((prev) => prev || v[0].id);
       }
     }
 
@@ -618,6 +654,13 @@ export default function Page() {
     () => costs.filter((c) => inRange(c.cost_date, fromDate, toDate)),
     [costs, fromDate, toDate]
   );
+
+  const periodBookings = useMemo(() => {
+    return bookings.filter((b) => {
+      const date = String(b.booking_time || "").slice(0, 10);
+      return date >= fromDate && date <= toDate;
+    });
+  }, [bookings, fromDate, toDate]);
 
   const totalIncome = periodTrips.reduce((sum, t) => sum + Number(t.amount || 0), 0);
   const totalCosts = periodCosts.reduce((sum, c) => sum + Number(c.amount || 0), 0);
@@ -856,11 +899,6 @@ export default function Page() {
   }
 
   async function addTrip() {
-    if (!tripVehicleId && role === "admin") {
-      setError("Välj bil.");
-      return;
-    }
-
     if (!tripAmount) {
       setError("Fyll i belopp.");
       return;
@@ -1008,9 +1046,10 @@ export default function Page() {
         const hasTrips = trips.some((t) => t.driver_id === id);
         const hasAdvances = advances.some((a) => a.driver_id === id);
         const hasVehicles = vehicles.some((v) => v.driver_id === id);
+        const hasBookings = bookings.some((b) => b.driver_id === id);
 
-        if (hasTrips || hasAdvances || hasVehicles) {
-          throw new Error("Föraren kan inte tas bort eftersom den är kopplad till resor, förskott eller bilar.");
+        if (hasTrips || hasAdvances || hasVehicles || hasBookings) {
+          throw new Error("Föraren kan inte tas bort eftersom den är kopplad till resor, bokningar, förskott eller bilar.");
         }
 
         const profile = profileMap[id];
@@ -1023,9 +1062,10 @@ export default function Page() {
       if (table === "vehicles") {
         const hasTrips = trips.some((t) => t.vehicle_id === id);
         const hasCosts = costs.some((c) => c.vehicle_id === id);
+        const hasBookings = bookings.some((b) => b.vehicle_id === id);
 
-        if (hasTrips || hasCosts) {
-          throw new Error("Bilen kan inte tas bort eftersom den är kopplad till resor eller kostnader.");
+        if (hasTrips || hasCosts || hasBookings) {
+          throw new Error("Bilen kan inte tas bort eftersom den är kopplad till resor, bokningar eller kostnader.");
         }
       }
 
@@ -1049,6 +1089,80 @@ export default function Page() {
     setVehicleReg(v.reg || "");
     setVehicleStatus(v.status || "Aktiv");
     setVehicleDriverId(v.driver_id || "");
+  }
+
+  function loadBookingToForm(b: Booking) {
+    setEditingBookingId(b.id);
+    setBookingCustomerName(b.customer_name || "");
+    setBookingCustomerPhone(b.customer_phone || "");
+    setBookingPickupAddress(b.pickup_address || "");
+    setBookingDropoffAddress(b.dropoff_address || "");
+    setBookingDateTime(
+      b.booking_time
+        ? new Date(b.booking_time).toISOString().slice(0, 16)
+        : nowDateTimeLocalString()
+    );
+    setBookingStatus(b.status || "Ny");
+    setBookingDriverId(b.driver_id || "");
+    setBookingVehicleId(b.vehicle_id || "");
+    setBookingNote(b.note || "");
+    setBookingPrice(Number(b.price || 0));
+  }
+
+  function resetBookingForm() {
+    setEditingBookingId(null);
+    setBookingCustomerName("");
+    setBookingCustomerPhone("");
+    setBookingPickupAddress("");
+    setBookingDropoffAddress("");
+    setBookingDateTime(nowDateTimeLocalString());
+    setBookingStatus("Ny");
+    setBookingDriverId(role === "driver" ? currentDriver?.id || "" : "");
+    setBookingVehicleId("");
+    setBookingNote("");
+    setBookingPrice(0);
+  }
+
+  async function saveBooking() {
+    if (!bookingCustomerName.trim() || !bookingPickupAddress.trim()) {
+      setError("Fyll i kundnamn och hämtningsadress.");
+      return;
+    }
+
+    await runAction(async () => {
+      const payload = {
+        customer_name: bookingCustomerName.trim(),
+        customer_phone: bookingCustomerPhone.trim() || null,
+        pickup_address: bookingPickupAddress.trim(),
+        dropoff_address: bookingDropoffAddress.trim() || null,
+        booking_time: new Date(bookingDateTime).toISOString(),
+        status: bookingStatus,
+        driver_id: bookingDriverId || null,
+        vehicle_id: bookingVehicleId || null,
+        note: bookingNote.trim() || null,
+        price: bookingPrice ? normalizeNumber(bookingPrice) : null,
+      };
+
+      if (editingBookingId) {
+        const { error } = await supabase.from("bookings").update(payload).eq("id", editingBookingId);
+        if (error) throw error;
+        setSuccess("Bokning uppdaterad.");
+      } else {
+        const { error } = await supabase.from("bookings").insert(payload);
+        if (error) throw error;
+        setSuccess("Bokning skapad.");
+      }
+
+      resetBookingForm();
+    });
+  }
+
+  async function changeBookingStatus(id: string, nextStatus: string) {
+    await runAction(async () => {
+      const { error } = await supabase.from("bookings").update({ status: nextStatus }).eq("id", id);
+      if (error) throw error;
+      setSuccess(`Bokning uppdaterad till ${nextStatus}.`);
+    });
   }
 
   async function saveCurrentVehicleLocation() {
@@ -1392,11 +1506,7 @@ export default function Page() {
   }
 
   if (bootLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 p-8 text-slate-700">
-        Startar Avenyn Taxi...
-      </div>
-    );
+    return <div className="min-h-screen bg-slate-50 p-8 text-slate-700">Startar Avenyn Taxi...</div>;
   }
 
   if (!user) {
@@ -1406,24 +1516,14 @@ export default function Page() {
           <div className="grid w-full gap-10 lg:grid-cols-2">
             <div className="flex flex-col justify-center">
               <div className="inline-flex w-fit items-center rounded-full bg-blue-100 px-4 py-1 text-sm font-medium text-blue-700">
-                Avenyn Taxi • ULTRA Auth
+                Avenyn Taxi • Version 5
               </div>
               <h1 className="mt-6 text-4xl font-bold tracking-tight text-slate-900">
-                Full taxi-dashboard med inloggning och roller
+                Komplett taxi-system med booking, lön och roller
               </h1>
               <p className="mt-4 max-w-xl text-lg text-slate-600">
-                Premiumvy för förare, fordon, resor, kostnader, Halda-import, lönespecifikation, PDF/Excel och spårning.
+                En komplett ljus dashboard för admin och förare med bookings, resor, kostnader, Halda-import, lönespecifikation, PDF, Excel och spårning.
               </p>
-              <div className="mt-8 grid gap-4 sm:grid-cols-2">
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="text-sm text-slate-500">Bolag</div>
-                  <div className="mt-2 text-lg font-semibold">{COMPANY.legalName}</div>
-                </div>
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="text-sm text-slate-500">Stad</div>
-                  <div className="mt-2 text-lg font-semibold">{COMPANY.city}</div>
-                </div>
-              </div>
             </div>
 
             <div className="flex items-center justify-center">
@@ -1431,7 +1531,7 @@ export default function Page() {
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-slate-900">Logga in</h2>
                   <p className="mt-2 text-sm text-slate-500">
-                    Admin ser allt. Förare ser endast sin egen vy.
+                    Admin ser allt. Förare ser endast sitt.
                   </p>
                 </div>
 
@@ -1479,11 +1579,7 @@ export default function Page() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 p-8 text-slate-700">
-        Laddar dashboard...
-      </div>
-    );
+    return <div className="min-h-screen bg-slate-50 p-8 text-slate-700">Laddar dashboard...</div>;
   }
 
   return (
@@ -1510,7 +1606,7 @@ export default function Page() {
         <div className="mb-6 rounded-3xl bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-500 p-6 text-white shadow-xl">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h1 className="text-3xl font-bold">Avenyn Taxi – ULTRA Auth</h1>
+              <h1 className="text-3xl font-bold">Avenyn Taxi – Version 5</h1>
               <p className="mt-2 text-sm text-blue-50">
                 Inloggad som {user.email} • Roll: {role} • Profilroll: {profileRecord?.role || "-"}
               </p>
@@ -1553,13 +1649,14 @@ export default function Page() {
           </div>
         )}
 
-        <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+        <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-7">
           <StatCard icon={<BadgeDollarSign size={18} />} title="Omsättning" value={money(totalIncome)} />
           <StatCard icon={<Wrench size={18} />} title="Kostnader" value={money(totalCosts)} />
           <StatCard icon={<Wallet size={18} />} title="Förskott" value={money(totalAdvances)} />
           <StatCard icon={<TrendingUp size={18} />} title="Estimerad lön" value={money(estimatedSalaryBase)} />
           <StatCard icon={<Receipt size={18} />} title="Netto efter förskott" value={money(estimatedNetAfterAdvances)} />
           <StatCard icon={<CarFront size={18} />} title="Aktiva bilar" value={String(activeVehicles)} />
+          <StatCard icon={<CalendarDays size={18} />} title="Bokningar" value={String(periodBookings.length)} />
         </div>
 
         <div className="mb-6 grid gap-6 xl:grid-cols-3">
@@ -1575,9 +1672,7 @@ export default function Page() {
             <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-sm">
               <div>Bolagsresultat: <strong>{money(companyResult)}</strong></div>
               <div>Bearbetade Halda-rader: <strong>{processedHaldaCount}</strong></div>
-              <div>
-                Toppförare: <strong>{topDriver ? `${topDriver.name} (${money(topDriver.amount)})` : "-"}</strong>
-              </div>
+              <div>Toppförare: <strong>{topDriver ? `${topDriver.name} (${money(topDriver.amount)})` : "-"}</strong></div>
             </div>
           </Panel>
 
@@ -1643,19 +1738,167 @@ export default function Page() {
               <div className="grid gap-3">
                 <div className="rounded-2xl bg-slate-50 p-4">
                   <div className="text-sm text-slate-500">Namn</div>
-                  <div className="mt-1 font-semibold">{drivers[0]?.full_name || "-"}</div>
+                  <div className="mt-1 font-semibold">{currentDriver?.full_name || "-"}</div>
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-4">
                   <div className="text-sm text-slate-500">Telefon</div>
-                  <div className="mt-1 font-semibold">{drivers[0]?.phone || "-"}</div>
+                  <div className="mt-1 font-semibold">{currentDriver?.phone || "-"}</div>
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-4">
                   <div className="text-sm text-slate-500">Löneprocent</div>
-                  <div className="mt-1 font-semibold">{drivers[0]?.salary_percent ?? DEFAULT_SALARY_PERCENT}%</div>
+                  <div className="mt-1 font-semibold">{currentDriver?.salary_percent ?? DEFAULT_SALARY_PERCENT}%</div>
                 </div>
               </div>
             </Panel>
           )}
+        </div>
+
+        <div className="mb-6 grid gap-6 xl:grid-cols-2">
+          <Panel title={editingBookingId ? "Redigera bokning" : "Ny bokning"} icon={<CalendarDays size={18} />}>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Kundnamn">
+                <input value={bookingCustomerName} onChange={(e) => setBookingCustomerName(e.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Telefon">
+                <input value={bookingCustomerPhone} onChange={(e) => setBookingCustomerPhone(e.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Hämta adress">
+                <input value={bookingPickupAddress} onChange={(e) => setBookingPickupAddress(e.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Lämna adress">
+                <input value={bookingDropoffAddress} onChange={(e) => setBookingDropoffAddress(e.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Tid">
+                <input type="datetime-local" value={bookingDateTime} onChange={(e) => setBookingDateTime(e.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Status">
+                <select value={bookingStatus} onChange={(e) => setBookingStatus(e.target.value)} className={inputClass}>
+                  {BOOKING_STATUS_OPTIONS.map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Förare">
+                <select
+                  value={bookingDriverId}
+                  onChange={(e) => setBookingDriverId(e.target.value)}
+                  className={inputClass}
+                  disabled={role === "driver"}
+                >
+                  <option value="">Ingen</option>
+                  {drivers.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.full_name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Bil">
+                <select
+                  value={bookingVehicleId}
+                  onChange={(e) => setBookingVehicleId(e.target.value)}
+                  className={inputClass}
+                  disabled={role === "driver"}
+                >
+                  <option value="">Ingen</option>
+                  {vehicles.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name} – {v.reg}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Pris">
+                <input type="number" value={bookingPrice} onChange={(e) => setBookingPrice(Number(e.target.value))} className={inputClass} />
+              </Field>
+              <Field label="Notering">
+                <input value={bookingNote} onChange={(e) => setBookingNote(e.target.value)} className={inputClass} />
+              </Field>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button onClick={saveBooking} disabled={saving} className={primaryButtonClass}>
+                <Plus size={16} />
+                {editingBookingId ? "Spara bokning" : "Skapa bokning"}
+              </button>
+              <button onClick={resetBookingForm} disabled={saving} className={secondaryButtonClass}>
+                Återställ
+              </button>
+            </div>
+          </Panel>
+
+          <Panel title="Bokningar i vald period" icon={<Route size={18} />}>
+            <div className="space-y-3 max-h-[520px] overflow-auto">
+              {periodBookings.length ? (
+                periodBookings.map((b) => (
+                  <div key={b.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <div className="font-semibold">{b.customer_name}</div>
+                        <div className="text-sm text-slate-500">{b.customer_phone || "-"}</div>
+                        <div className="mt-1 text-sm">{b.pickup_address}</div>
+                        <div className="text-sm text-slate-500">→ {b.dropoff_address || "-"}</div>
+                        <div className="mt-2 text-xs text-slate-500">
+                          {prettyDateTime(b.booking_time)} • {b.driver_id ? driverMap[b.driver_id]?.full_name || "-" : "Ingen förare"} • {b.vehicle_id ? `${vehicleMap[b.vehicle_id]?.name || ""} ${vehicleMap[b.vehicle_id]?.reg || ""}` : "Ingen bil"}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          Pris: {money(b.price || 0)} • Notering: {b.note || "-"}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2">
+                        <span
+                          className={classNames(
+                            "rounded-full px-3 py-1 text-xs font-semibold text-center",
+                            b.status === "Klar" && "bg-emerald-100 text-emerald-700",
+                            b.status === "På väg" && "bg-blue-100 text-blue-700",
+                            b.status === "Hämtad" && "bg-cyan-100 text-cyan-700",
+                            b.status === "Tilldelad" && "bg-violet-100 text-violet-700",
+                            b.status === "Avbokad" && "bg-red-100 text-red-700",
+                            b.status === "Ny" && "bg-amber-100 text-amber-700"
+                          )}
+                        >
+                          {b.status}
+                        </span>
+
+                        <div className="flex flex-wrap gap-2">
+                          <button onClick={() => loadBookingToForm(b)} className={iconBtnClass}>
+                            <Pencil size={15} />
+                          </button>
+                          {role === "admin" && (
+                            <button onClick={() => safeDelete("bookings", b.id, `bokning "${b.customer_name}"`)} className={dangerIconBtnClass}>
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {BOOKING_STATUS_OPTIONS.map((status) => (
+                            <button
+                              key={status}
+                              onClick={() => changeBookingStatus(b.id, status)}
+                              className={classNames(
+                                "rounded-xl border px-2 py-1 text-xs font-medium",
+                                b.status === status
+                                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                                  : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                              )}
+                            >
+                              {status}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                  Inga bokningar i vald period.
+                </div>
+              )}
+            </div>
+          </Panel>
         </div>
 
         <div className="mb-6 grid gap-6 xl:grid-cols-3">
@@ -1682,12 +1925,7 @@ export default function Page() {
                 </select>
               </Field>
               <Field label="Belopp">
-                <input
-                  type="number"
-                  value={tripAmount}
-                  onChange={(e) => setTripAmount(Number(e.target.value))}
-                  className={inputClass}
-                />
+                <input type="number" value={tripAmount} onChange={(e) => setTripAmount(Number(e.target.value))} className={inputClass} />
               </Field>
               <Field label="Källa">
                 <select value={tripSource} onChange={(e) => setTripSource(e.target.value)} className={inputClass}>
@@ -1723,12 +1961,7 @@ export default function Page() {
                     </select>
                   </Field>
                   <Field label="Belopp">
-                    <input
-                      type="number"
-                      value={advanceAmount}
-                      onChange={(e) => setAdvanceAmount(Number(e.target.value))}
-                      className={inputClass}
-                    />
+                    <input type="number" value={advanceAmount} onChange={(e) => setAdvanceAmount(Number(e.target.value))} className={inputClass} />
                   </Field>
                   <Field label="Datum">
                     <input type="date" value={advanceDate} onChange={(e) => setAdvanceDate(e.target.value)} className={inputClass} />
@@ -1755,12 +1988,7 @@ export default function Page() {
                     </select>
                   </Field>
                   <Field label="Belopp">
-                    <input
-                      type="number"
-                      value={costAmount}
-                      onChange={(e) => setCostAmount(Number(e.target.value))}
-                      className={inputClass}
-                    />
+                    <input type="number" value={costAmount} onChange={(e) => setCostAmount(Number(e.target.value))} className={inputClass} />
                   </Field>
                   <Field label="Typ">
                     <select value={costType} onChange={(e) => setCostType(e.target.value)} className={inputClass}>
@@ -1809,11 +2037,7 @@ export default function Page() {
               <Panel title="Förarprofil / lönedata" icon={<Receipt size={18} />}>
                 <div className="grid gap-3">
                   <Field label="Förare">
-                    <select
-                      value={profileForm.driver_id}
-                      onChange={(e) => loadProfileToForm(e.target.value)}
-                      className={inputClass}
-                    >
+                    <select value={profileForm.driver_id} onChange={(e) => loadProfileToForm(e.target.value)} className={inputClass}>
                       <option value="">Välj förare</option>
                       {drivers.map((d) => (
                         <option key={d.id} value={d.id}>
@@ -1825,47 +2049,22 @@ export default function Page() {
 
                   <div className="grid gap-3 md:grid-cols-2">
                     <Field label="Full adress">
-                      <input
-                        value={profileForm.full_address || ""}
-                        onChange={(e) => setProfileForm((p) => ({ ...p, full_address: e.target.value }))}
-                        className={inputClass}
-                      />
+                      <input value={profileForm.full_address || ""} onChange={(e) => setProfileForm((p) => ({ ...p, full_address: e.target.value }))} className={inputClass} />
                     </Field>
                     <Field label="Personnummer">
-                      <input
-                        value={profileForm.personal_number || ""}
-                        onChange={(e) => setProfileForm((p) => ({ ...p, personal_number: e.target.value }))}
-                        className={inputClass}
-                      />
+                      <input value={profileForm.personal_number || ""} onChange={(e) => setProfileForm((p) => ({ ...p, personal_number: e.target.value }))} className={inputClass} />
                     </Field>
                     <Field label="Banknamn">
-                      <input
-                        value={profileForm.bank_name || ""}
-                        onChange={(e) => setProfileForm((p) => ({ ...p, bank_name: e.target.value }))}
-                        className={inputClass}
-                      />
+                      <input value={profileForm.bank_name || ""} onChange={(e) => setProfileForm((p) => ({ ...p, bank_name: e.target.value }))} className={inputClass} />
                     </Field>
                     <Field label="Kontonummer">
-                      <input
-                        value={profileForm.bank_account || ""}
-                        onChange={(e) => setProfileForm((p) => ({ ...p, bank_account: e.target.value }))}
-                        className={inputClass}
-                      />
+                      <input value={profileForm.bank_account || ""} onChange={(e) => setProfileForm((p) => ({ ...p, bank_account: e.target.value }))} className={inputClass} />
                     </Field>
                     <Field label="Kontanthantering">
-                      <input
-                        type="number"
-                        value={Number(profileForm.cash_handled || 0)}
-                        onChange={(e) => setProfileForm((p) => ({ ...p, cash_handled: Number(e.target.value) }))}
-                        className={inputClass}
-                      />
+                      <input type="number" value={Number(profileForm.cash_handled || 0)} onChange={(e) => setProfileForm((p) => ({ ...p, cash_handled: Number(e.target.value) }))} className={inputClass} />
                     </Field>
                     <Field label="Notering kontanthantering">
-                      <input
-                        value={profileForm.cash_note || ""}
-                        onChange={(e) => setProfileForm((p) => ({ ...p, cash_note: e.target.value }))}
-                        className={inputClass}
-                      />
+                      <input value={profileForm.cash_note || ""} onChange={(e) => setProfileForm((p) => ({ ...p, cash_note: e.target.value }))} className={inputClass} />
                     </Field>
                   </div>
 
@@ -1900,11 +2099,7 @@ export default function Page() {
                       </select>
                     </Field>
                     <Field label="Default källa">
-                      <select
-                        value={haldaDefaultSource}
-                        onChange={(e) => setHaldaDefaultSource(e.target.value)}
-                        className={inputClass}
-                      >
+                      <select value={haldaDefaultSource} onChange={(e) => setHaldaDefaultSource(e.target.value)} className={inputClass}>
                         {SOURCE_OPTIONS.map((s) => (
                           <option key={s}>{s}</option>
                         ))}
@@ -1913,12 +2108,7 @@ export default function Page() {
                   </div>
 
                   <Field label="Klistra in Halda-data (datum;belopp;meter;kontant;kort;shift;ref;notering)">
-                    <textarea
-                      value={haldaPaste}
-                      onChange={(e) => setHaldaPaste(e.target.value)}
-                      rows={7}
-                      className={inputClass}
-                    />
+                    <textarea value={haldaPaste} onChange={(e) => setHaldaPaste(e.target.value)} rows={7} className={inputClass} />
                   </Field>
 
                   <div className="flex flex-wrap gap-3">
@@ -1990,11 +2180,7 @@ export default function Page() {
               <Panel title="Fordonsposition" icon={<MapPinned size={18} />}>
                 <div className="grid gap-3">
                   <Field label="Välj fordon">
-                    <select
-                      value={selectedTrackerVehicleId}
-                      onChange={(e) => setSelectedTrackerVehicleId(e.target.value)}
-                      className={inputClass}
-                    >
+                    <select value={selectedTrackerVehicleId} onChange={(e) => setSelectedTrackerVehicleId(e.target.value)} className={inputClass}>
                       <option value="">Välj bil</option>
                       {vehicles.map((v) => (
                         <option key={v.id} value={v.id}>
@@ -2208,11 +2394,7 @@ export default function Page() {
         <Panel title="Lönespecifikation ULTRA" icon={<FileText size={18} />}>
           <div className="mb-4 grid gap-3 md:grid-cols-4">
             <Field label="Välj förare">
-              <select
-                value={selectedPayrollDriverId}
-                onChange={(e) => setSelectedPayrollDriverId(e.target.value)}
-                className={inputClass}
-              >
+              <select value={selectedPayrollDriverId} onChange={(e) => setSelectedPayrollDriverId(e.target.value)} className={inputClass}>
                 {drivers.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.full_name}
@@ -2237,11 +2419,7 @@ export default function Page() {
             </div>
           </div>
 
-          <div
-            id="print-area"
-            ref={printRef}
-            className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
-          >
+          <div id="print-area" ref={printRef} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-6 md:flex-row md:items-start md:justify-between">
               <div>
                 <h2 className="text-2xl font-bold">{COMPANY.name}</h2>
