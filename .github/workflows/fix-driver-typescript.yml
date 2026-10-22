@@ -1,4 +1,4 @@
-name: Fix Driver TypeScript dependency
+name: Trigger fixed Driver iOS build
 
 on:
   push:
@@ -7,48 +7,15 @@ on:
       - '.github/workflows/fix-driver-typescript.yml'
 
 permissions:
-  contents: write
   actions: write
 
 jobs:
-  fix-and-run:
+  trigger-driver:
     runs-on: ubuntu-latest
     steps:
-      - name: Hämta projektet
-        uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Lägg till TypeScript i Driver-workflow
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('.github/workflows/driver-ios.yml')
-          s = p.read_text()
-          old = '            @capgo/background-geolocation@8.4.3\n'
-          new = '            @capgo/background-geolocation@8.4.3 \\\n            typescript@5.9.3\n'
-          if 'typescript@5.9.3' not in s:
-              if old not in s:
-                  raise SystemExit('Kunde inte hitta paket-raden att uppdatera')
-              s = s.replace(old, new, 1)
-              p.write_text(s)
-          PY
-
-      - name: Spara rättningen
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/workflows/driver-ios.yml
-          if git diff --cached --quiet; then
-            echo 'TypeScript finns redan i workflowet.'
-          else
-            git commit -m 'Fix Driver TypeScript dependency'
-            git push origin main
-          fi
-
-      - name: Starta nytt Driver iOS-bygge
+      - name: Starta Driver iOS-bygge
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           sleep 3
-          gh workflow run driver-ios.yml --ref main
+          gh workflow run driver-ios.yml --repo muratix647-bit/Avenyn-Taxi --ref main
