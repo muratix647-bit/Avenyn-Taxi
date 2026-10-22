@@ -22,6 +22,9 @@ jobs:
       - name: Installera Capacitor
         run: npm install @capacitor/core @capacitor/cli @capacitor/ios
 
+      - name: Skapa Capacitor-konfiguration
+        run: npx cap init "Avenyn Taxi" "se.avenyntaxi.app" --web-dir=out
+
       - name: Skapa iOS-plattform
         run: npx cap add ios
 
