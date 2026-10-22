@@ -28,13 +28,13 @@ jobs:
       - name: Skapa Capacitor-konfiguration
         run: npx cap init "Avenyn Taxi" "se.avenyntaxi.app" --web-dir=out
 
-      - name: Skapa iOS-plattform
-        run: npx cap add ios --no-sync
-
-      - name: Sätt iOS deployment target
+      - name: Sätt Capacitor iOS deployment target
         run: |
-          sed -i '' "s/platform :ios, '[^']*'/platform :ios, '15.0'/" ios/App/Podfile
-          grep "platform :ios" ios/App/Podfile
+          sed -i '' "s/s\.ios\.deployment_target = '[^']*'/s.ios.deployment_target = '15.0'/" node_modules/@capacitor/ios/Capacitor/Capacitor.podspec
+          grep "deployment_target" node_modules/@capacitor/ios/Capacitor/Capacitor.podspec
+
+      - name: Skapa iOS-plattform
+        run: npx cap add ios
 
       - name: Synka Capacitor iOS
         run: npx cap sync ios
