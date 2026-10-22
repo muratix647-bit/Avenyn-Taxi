@@ -263,7 +263,7 @@ jobs:
           mkdir -p driver-build/build
           cd driver-build/ios/App
           xcodebuild \
-            -workspace App.xcworkspace \
+            -project App.xcodeproj \
             -scheme App \
             -configuration Release \
             -destination 'generic/platform=iOS' \
