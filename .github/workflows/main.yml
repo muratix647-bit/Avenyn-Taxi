@@ -153,3 +153,36 @@ jobs:
           path: build/export/*.ipa
           if-no-files-found: error
           retention-days: 14
+
+      - name: Förbered App Store Connect API-nyckel
+        env:
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+        run: |
+          KEY_DIR="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$KEY_DIR"
+          printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          chmod 600 "$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          test -s "$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+
+      - name: Validera och ladda upp IPA till App Store Connect
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          IPA_FILE="$(find build/export -maxdepth 1 -name '*.ipa' -print -quit)"
+          test -n "$IPA_FILE"
+
+          echo "Validerar IPA mot App Store Connect..."
+          xcrun altool --validate-app \
+            --file "$IPA_FILE" \
+            --type ios \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+
+          echo "Laddar upp IPA till App Store Connect..."
+          xcrun altool --upload-app \
+            --file "$IPA_FILE" \
+            --type ios \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
