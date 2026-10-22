@@ -29,7 +29,12 @@ jobs:
         run: npx cap init "Avenyn Taxi" "se.avenyntaxi.app" --web-dir=out
 
       - name: Skapa iOS-plattform
-        run: npx cap add ios
+        run: npx cap add ios --no-sync
+
+      - name: Sätt iOS deployment target
+        run: |
+          sed -i '' "s/platform :ios, '[^']*'/platform :ios, '15.0'/" ios/App/Podfile
+          grep "platform :ios" ios/App/Podfile
 
       - name: Synka Capacitor iOS
         run: npx cap sync ios
