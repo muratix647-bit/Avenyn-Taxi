@@ -1,0 +1,40 @@
+name: Build Avenyn Taxi iOS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - name: Hämta projektet
+        uses: actions/checkout@v4
+
+      - name: Installera Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installera paket
+        run: npm ci
+
+      - name: Synka Capacitor iOS
+        run: npx cap sync ios
+
+      - name: Kontrollera iOS-projekt
+        run: |
+          echo "Avenyn Taxi iOS"
+          ls -la ios/App
+          xcodebuild -version
+
+      - name: Bygg iOS utan signering
+        run: |
+          cd ios/App
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphonesimulator \
+            CODE_SIGNING_ALLOWED=NO \
+            build
