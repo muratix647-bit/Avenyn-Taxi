@@ -18,8 +18,13 @@ jobs:
 
       - name: Installera paket
         run: npm ci
+
       - name: Installera Capacitor
         run: npm install @capacitor/core @capacitor/cli @capacitor/ios
+
+      - name: Skapa iOS-plattform
+        run: npx cap add ios
+
       - name: Synka Capacitor iOS
         run: npx cap sync ios
 
