@@ -17,5 +17,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          echo 'Trigger 2 - Xcode project fix'
           sleep 3
           gh workflow run driver-ios.yml --repo muratix647-bit/Avenyn-Taxi --ref main
