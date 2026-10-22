@@ -48,5 +48,19 @@ jobs:
             -scheme App \
             -configuration Release \
             -sdk iphonesimulator \
+            -derivedDataPath ../../build \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+      - name: Kontrollera byggd app
+        run: |
+          test -d build/Build/Products/Release-iphonesimulator/App.app
+          ls -la build/Build/Products/Release-iphonesimulator/App.app
+
+      - name: Ladda upp iOS build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Avenyn-Taxi-iOS-Simulator
+          path: build/Build/Products/Release-iphonesimulator/App.app
+          if-no-files-found: error
+          retention-days: 14
