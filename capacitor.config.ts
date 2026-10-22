@@ -1,0 +1,36 @@
+import type { CapacitorConfig } from "@capacitor/cli";
+
+const config: CapacitorConfig = {
+  appId: "se.avenyntaxi.app",
+  appName: "Avenyn Taxi",
+  webDir: "www",
+  backgroundColor: "#eef6fa",
+  server: {
+    url: "https://avenyntaxi.se/?native=customer#booking",
+    cleartext: false,
+    allowNavigation: ["avenyntaxi.se", "www.avenyntaxi.se"],
+  },
+  ios: {
+    contentInset: "automatic",
+    preferredContentMode: "mobile",
+    scheme: "AvenynTaxi",
+  },
+  android: {
+    allowMixedContent: false,
+    backgroundColor: "#eef6fa",
+  },
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 1400,
+      backgroundColor: "#ffffff",
+      showSpinner: false,
+    },
+    StatusBar: {
+      style: "LIGHT",
+      backgroundColor: "#0798df",
+    },
+    Keyboard: { resize: "body" },
+  },
+};
+
+export default config;
