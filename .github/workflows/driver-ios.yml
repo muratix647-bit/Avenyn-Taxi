@@ -1,0 +1,306 @@
+name: Build Avenyn Taxi Driver iOS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-driver-ios:
+    runs-on: macos-latest
+
+    steps:
+      - name: Hämta projektet
+        uses: actions/checkout@v4
+
+      - name: Installera Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Skapa Driver-projekt
+        run: |
+          set -e
+          rm -rf driver-build
+          mkdir -p driver-build/www
+          cd driver-build
+          npm init -y
+          npm pkg set type=module
+          npm install \
+            @capacitor/core@8 \
+            @capacitor/cli@8 \
+            @capacitor/ios@8 \
+            @capacitor/app@8 \
+            @capacitor/geolocation@8 \
+            @capacitor/haptics@8 \
+            @capacitor/keyboard@8 \
+            @capacitor/local-notifications@8 \
+            @capacitor/network@8 \
+            @capacitor/preferences@8 \
+            @capacitor/push-notifications@8 \
+            @capacitor/splash-screen@8 \
+            @capacitor/status-bar@8 \
+            @capgo/background-geolocation@8.4.3
+
+          cat > www/index.html <<'EOF'
+          <!doctype html>
+          <html lang="sv">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+              <meta name="theme-color" content="#0798df" />
+              <title>Avenyn Taxi Driver</title>
+            </head>
+            <body style="margin:0;background:#eef6fa;color:#071d31;font-family:system-ui;text-align:center;padding:20vh 24px">
+              <h1>Avenyn Taxi Driver</h1>
+              <p>Ansluter till förarappen…</p>
+            </body>
+          </html>
+          EOF
+
+          cat > capacitor.config.ts <<'EOF'
+          import type { CapacitorConfig } from '@capacitor/cli';
+
+          const config: CapacitorConfig = {
+            appId: 'se.avenyntaxi.driver',
+            appName: 'Avenyn Taxi Driver',
+            webDir: 'www',
+            backgroundColor: '#eef6fa',
+            server: {
+              url: 'https://avenyntaxi.se/driver?native=driver',
+              cleartext: false,
+              allowNavigation: ['avenyntaxi.se', 'www.avenyntaxi.se'],
+            },
+            ios: {
+              contentInset: 'automatic',
+              preferredContentMode: 'mobile',
+              scheme: 'AvenynTaxiDriver',
+            },
+            plugins: {
+              SplashScreen: {
+                launchShowDuration: 1400,
+                backgroundColor: '#ffffff',
+                showSpinner: false,
+              },
+              Keyboard: { resize: 'body' },
+              PushNotifications: {
+                presentationOptions: ['badge', 'sound', 'alert'],
+              },
+            },
+          };
+
+          export default config;
+          EOF
+
+          npx cap add ios
+          npx cap sync ios
+
+      - name: Lägg in appikon och iOS-behörigheter
+        run: |
+          set -e
+          cd driver-build
+
+          APPICON_DIR="ios/App/App/Assets.xcassets/AppIcon.appiconset"
+          CONTENTS_JSON="$APPICON_DIR/Contents.json"
+          SOURCE_ICON="../public/logo.png"
+          MASTER_JPG="$RUNNER_TEMP/AvenynTaxiDriverIcon1024.jpg"
+          MASTER_PNG="$RUNNER_TEMP/AvenynTaxiDriverIcon1024.png"
+
+          test -f "$SOURCE_ICON"
+          test -f "$CONTENTS_JSON"
+
+          sips -s format jpeg "$SOURCE_ICON" --out "$MASTER_JPG" >/dev/null
+          sips -Z 820 "$MASTER_JPG" >/dev/null
+          sips -p 1024 1024 --padColor FFFFFF "$MASTER_JPG" >/dev/null
+          sips -s format png "$MASTER_JPG" --out "$MASTER_PNG" >/dev/null
+
+          python3 <<'PY'
+          import json, os, re, subprocess
+          appicon_dir = 'ios/App/App/Assets.xcassets/AppIcon.appiconset'
+          contents_path = os.path.join(appicon_dir, 'Contents.json')
+          master = os.environ['RUNNER_TEMP'] + '/AvenynTaxiDriverIcon1024.png'
+          with open(contents_path, 'r', encoding='utf-8') as f:
+              data = json.load(f)
+          for index, item in enumerate(data.get('images', [])):
+              size = item.get('size')
+              scale = item.get('scale', '1x')
+              if not size:
+                  continue
+              points = float(size.split('x')[0])
+              multiplier = float(scale.rstrip('x'))
+              pixels = int(round(points * multiplier))
+              idiom = re.sub(r'[^A-Za-z0-9_-]+', '-', item.get('idiom', item.get('platform', 'ios')))
+              filename = f'AvenynTaxiDriver-AppIcon-{idiom}-{pixels}px-{index}.png'
+              output = os.path.join(appicon_dir, filename)
+              subprocess.run(['sips','-z',str(pixels),str(pixels),master,'--out',output], check=True, stdout=subprocess.DEVNULL)
+              item['filename'] = filename
+          with open(contents_path, 'w', encoding='utf-8') as f:
+              json.dump(data, f, indent=2, ensure_ascii=False)
+              f.write('\n')
+          PY
+
+          PLIST="ios/App/App/Info.plist"
+          /usr/libexec/PlistBuddy -c "Delete :ITSAppUsesNonExemptEncryption" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST"
+
+          for KEY in NSLocationWhenInUseUsageDescription NSLocationAlwaysAndWhenInUseUsageDescription NSLocationAlwaysUsageDescription NSMicrophoneUsageDescription NSMotionUsageDescription; do
+            /usr/libexec/PlistBuddy -c "Delete :$KEY" "$PLIST" 2>/dev/null || true
+          done
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string Avenyn Taxi Driver använder din position när du är online och hanterar körningar." "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string Avenyn Taxi Driver använder din position under aktivt arbete för dispatch och kundens liveföljning." "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string Avenyn Taxi Driver använder din position under aktivt arbete för dispatch och kundens liveföljning." "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string Avenyn Taxi Driver behöver mikrofonen för appsamtal med kunden." "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string Rörelsedata används för att förbättra bakgrundspositionering under aktivt arbete." "$PLIST"
+
+          /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string location" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string remote-notification" "$PLIST"
+
+      - name: Installera Apple-certifikat och Driver provisioning profile
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          DRIVER_PROVISIONING_PROFILE_BASE64: ${{ secrets.DRIVER_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -e
+          CERTIFICATE_PATH="$RUNNER_TEMP/avenyn-taxi-distribution.p12"
+          PP_PATH="$RUNNER_TEMP/avenyn-taxi-driver.mobileprovision"
+          KEYCHAIN_PATH="$RUNNER_TEMP/driver-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+
+          test -n "$BUILD_CERTIFICATE_BASE64"
+          test -n "$P12_PASSWORD"
+          test -n "$DRIVER_PROVISIONING_PROFILE_BASE64"
+
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+          echo -n "$DRIVER_PROVISIONING_PROFILE_BASE64" | base64 --decode -o "$PP_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          security cms -D -i "$PP_PATH" > "$RUNNER_TEMP/driver-profile.plist"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/driver-profile.plist")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/driver-profile.plist")
+          APP_IDENTIFIER=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$RUNNER_TEMP/driver-profile.plist")
+          echo "Driver profile: $PROFILE_NAME / $APP_IDENTIFIER"
+          test "$APP_IDENTIFIER" = "YY8P86Q275.se.avenyntaxi.driver"
+          cp "$PP_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+
+      - name: Konfigurera Driver-signering
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          set -e
+          cd driver-build
+          ruby <<'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('ios/App/App.xcodeproj')
+          target = project.targets.find { |t| t.name == 'App' }
+          abort('App-target hittades inte') unless target
+          target.build_configurations.each do |config|
+            config.build_settings['DEVELOPMENT_TEAM'] = 'YY8P86Q275'
+            config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
+            config.build_settings['CODE_SIGN_IDENTITY'] = 'Apple Distribution'
+            config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = 'Avenyn Taxi Driver App Store'
+            config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'se.avenyntaxi.driver'
+            config.build_settings['PRODUCT_NAME'] = 'Avenyn Taxi Driver'
+            config.build_settings['MARKETING_VERSION'] = '1.0'
+            config.build_settings['CURRENT_PROJECT_VERSION'] = ENV.fetch('BUILD_NUMBER')
+            config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+            config.build_settings['TARGETED_DEVICE_FAMILY'] = '1'
+          end
+          project.save
+          RUBY
+
+      - name: Skapa ExportOptions.plist
+        run: |
+          cat > "$RUNNER_TEMP/DriverExportOptions.plist" <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>teamID</key>
+            <string>YY8P86Q275</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>se.avenyntaxi.driver</key>
+              <string>Avenyn Taxi Driver App Store</string>
+            </dict>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Arkivera Driver iOS
+        run: |
+          set -e
+          mkdir -p driver-build/build
+          cd driver-build/ios/App
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath ../../build/AvenynTaxiDriver.xcarchive \
+            archive
+
+      - name: Exportera Driver IPA
+        run: |
+          set -e
+          mkdir -p driver-build/build/export
+          xcodebuild \
+            -exportArchive \
+            -archivePath driver-build/build/AvenynTaxiDriver.xcarchive \
+            -exportPath driver-build/build/export \
+            -exportOptionsPlist "$RUNNER_TEMP/DriverExportOptions.plist"
+          find driver-build/build/export -maxdepth 2 -type f -print
+          test -n "$(find driver-build/build/export -maxdepth 1 -name '*.ipa' -print -quit)"
+
+      - name: Ladda upp Driver IPA som artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Avenyn-Taxi-Driver-TestFlight-IPA
+          path: driver-build/build/export/*.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Förbered App Store Connect API-nyckel
+        env:
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+        run: |
+          KEY_DIR="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$KEY_DIR"
+          printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          chmod 600 "$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          test -s "$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+
+      - name: Validera och ladda upp Driver till TestFlight
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -e
+          IPA_FILE="$(find driver-build/build/export -maxdepth 1 -name '*.ipa' -print -quit)"
+          test -n "$IPA_FILE"
+          xcrun altool --validate-app \
+            --file "$IPA_FILE" \
+            --type ios \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+          xcrun altool --upload-app \
+            --file "$IPA_FILE" \
+            --type ios \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
