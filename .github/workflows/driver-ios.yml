@@ -38,7 +38,8 @@ jobs:
             @capacitor/push-notifications@8 \
             @capacitor/splash-screen@8 \
             @capacitor/status-bar@8 \
-            @capgo/background-geolocation@8.4.3
+            @capgo/background-geolocation@8.4.3 \
+            typescript@5.9.3
 
           cat > www/index.html <<'EOF'
           <!doctype html>
