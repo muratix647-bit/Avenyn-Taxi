@@ -1,4 +1,4 @@
-name: Build Avenyn Taxi iOS
+name: Build Avenyn Taxi Customer iOS
 
 on:
   workflow_dispatch:
@@ -8,108 +8,46 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Hämta projektet
+      - name: Hämta rätt kundapp
         uses: actions/checkout@v4
+        with:
+          ref: ios-app-store
 
       - name: Installera Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Installera paket
         run: npm ci
 
-      - name: Installera Capacitor 7
-        run: npm install --no-save @capacitor/core@7 @capacitor/cli@7 @capacitor/ios@7
-
-      - name: Bygg webbappen
-        run: npm run build
-
-      - name: Skapa Capacitor-konfiguration
-        run: npx cap init "Avenyn Taxi" "se.avenyntaxi.app" --web-dir=out
-
-      - name: Skapa iOS-plattform
-        run: npx cap add ios
-
-      - name: Synka Capacitor iOS
-        run: npx cap sync ios
-
-      - name: Lägg in Avenyn Taxi-appikon och iOS-inställningar
+      - name: Synka kundappen till iOS
         run: |
           set -e
+          npx cap sync ios
 
-          APPICON_DIR="ios/App/App/Assets.xcassets/AppIcon.appiconset"
-          CONTENTS_JSON="$APPICON_DIR/Contents.json"
-          SOURCE_ICON="public/logo.png"
-          MASTER_JPG="$RUNNER_TEMP/AvenynTaxiIcon1024.jpg"
-          MASTER_PNG="$RUNNER_TEMP/AvenynTaxiIcon1024.png"
+      - name: Kontrollera att rätt kundapp byggs
+        run: |
+          set -e
+          echo "Kontrollerar Bundle ID och kund-URL..."
+          grep -n 'se.avenyntaxi.app' capacitor.config.ts
+          grep -n 'native=customer#booking' capacitor.config.ts
+          ! grep -R "Avenyn Taxi Dashboard" -n . --exclude-dir=node_modules --exclude-dir=.git
+          ! grep -R "NEXT_PUBLIC_SUPABASE_URL" -n . --exclude-dir=node_modules --exclude-dir=.git
+          test -f ios/App/App.xcodeproj/project.pbxproj
+          echo "Rätt Avenyn Taxi kundapp verifierad."
 
-          test -f "$SOURCE_ICON"
-          test -f "$CONTENTS_JSON"
-
-          # Skapa en kvadratisk, ogenomskinlig 1024x1024 masterikon med vit bakgrund.
-          sips -s format jpeg "$SOURCE_ICON" --out "$MASTER_JPG" >/dev/null
-          sips -Z 820 "$MASTER_JPG" >/dev/null
-          sips -p 1024 1024 --padColor FFFFFF "$MASTER_JPG" >/dev/null
-          sips -s format png "$MASTER_JPG" --out "$MASTER_PNG" >/dev/null
-
-          # Generera exakt de ikonstorlekar som Xcode-projektets AppIcon-katalog kräver.
-          python3 <<'PY'
-          import json
-          import os
-          import re
-          import subprocess
-
-          appicon_dir = 'ios/App/App/Assets.xcassets/AppIcon.appiconset'
-          contents_path = os.path.join(appicon_dir, 'Contents.json')
-          master = os.environ['RUNNER_TEMP'] + '/AvenynTaxiIcon1024.png'
-
-          with open(contents_path, 'r', encoding='utf-8') as f:
-              data = json.load(f)
-
-          for index, item in enumerate(data.get('images', [])):
-              size = item.get('size')
-              scale = item.get('scale', '1x')
-              if not size:
-                  continue
-
-              points = float(size.split('x')[0])
-              multiplier = float(scale.rstrip('x'))
-              pixels = int(round(points * multiplier))
-
-              idiom = re.sub(r'[^A-Za-z0-9_-]+', '-', item.get('idiom', item.get('platform', 'ios')))
-              filename = f'AvenynTaxi-AppIcon-{idiom}-{pixels}px-{index}.png'
-              output = os.path.join(appicon_dir, filename)
-
-              subprocess.run(
-                  ['sips', '-z', str(pixels), str(pixels), master, '--out', output],
-                  check=True,
-                  stdout=subprocess.DEVNULL,
-              )
-              item['filename'] = filename
-
-          with open(contents_path, 'w', encoding='utf-8') as f:
-              json.dump(data, f, indent=2, ensure_ascii=False)
-              f.write('\n')
-          PY
-
-          # Slipp export-compliance-frågan för vanlig system-HTTPS/TLS.
+      - name: Lägg in iOS-inställningar
+        run: |
+          set -e
           PLIST="ios/App/App/Info.plist"
+          test -f "$PLIST"
+
           /usr/libexec/PlistBuddy -c "Delete :ITSAppUsesNonExemptEncryption" "$PLIST" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST"
 
-          # Krävs för Hitta mig / kundens upphämtningsposition på iPhone.
           /usr/libexec/PlistBuddy -c "Delete :NSLocationWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string Din plats används för att hitta din upphämtningsadress och visa taxibilar nära dig." "$PLIST"
-
-          echo "Avenyn Taxi-appikon och iOS-inställningar är klara."
-          cat "$CONTENTS_JSON"
-
-      - name: Kontrollera iOS-projekt
-        run: |
-          echo "Avenyn Taxi iOS"
-          ls -la ios/App
-          xcodebuild -version
 
       - name: Installera Apple-certifikat och provisioning profile
         env:
@@ -117,10 +55,15 @@ jobs:
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
           PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
         run: |
+          set -e
           CERTIFICATE_PATH="$RUNNER_TEMP/avenyn-taxi-distribution.p12"
           PP_PATH="$RUNNER_TEMP/avenyn-taxi.mobileprovision"
           KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
           KEYCHAIN_PASSWORD="$(uuidgen)"
+
+          test -n "$BUILD_CERTIFICATE_BASE64"
+          test -n "$P12_PASSWORD"
+          test -n "$PROVISIONING_PROFILE_BASE64"
 
           echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
           echo -n "$PROVISIONING_PROFILE_BASE64" | base64 --decode -o "$PP_PATH"
@@ -136,15 +79,15 @@ jobs:
           security cms -D -i "$PP_PATH" > "$RUNNER_TEMP/profile.plist"
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")
           PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profile.plist")
+          APP_IDENTIFIER=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$RUNNER_TEMP/profile.plist")
+          echo "Profil: $PROFILE_NAME / $APP_IDENTIFIER"
+          test "$APP_IDENTIFIER" = "YY8P86Q275.se.avenyntaxi.app"
           cp "$PP_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
 
-          echo "Installerad profil: $PROFILE_NAME ($PROFILE_UUID)"
-          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
-
-      - name: Konfigurera signering endast för App-target
-        env:
-          BUILD_NUMBER: ${{ github.run_number }}
+      - name: Konfigurera signering och Build 16
         run: |
+          set -e
+          gem install xcodeproj --no-document
           ruby <<'RUBY'
           require 'xcodeproj'
 
@@ -158,14 +101,15 @@ jobs:
             config.build_settings['CODE_SIGN_IDENTITY'] = 'Apple Distribution'
             config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = 'Avenyn Taxi App Store'
             config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'se.avenyntaxi.app'
+            config.build_settings['PRODUCT_NAME'] = 'Avenyn Taxi'
             config.build_settings['MARKETING_VERSION'] = '1.0'
-            config.build_settings['CURRENT_PROJECT_VERSION'] = ENV.fetch('BUILD_NUMBER')
+            config.build_settings['CURRENT_PROJECT_VERSION'] = '16'
             config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
             config.build_settings['TARGETED_DEVICE_FAMILY'] = '1'
           end
 
           project.save
-          puts 'Signering konfigurerad endast för App-target. Minsta iOS-version: 15.0. Endast iPhone.'
+          puts 'Avenyn Taxi kundapp konfigurerad som version 1.0 build 16.'
           RUBY
 
       - name: Skapa ExportOptions.plist
@@ -194,35 +138,36 @@ jobs:
           </plist>
           EOF
 
-      - name: Arkivera signerad iOS-app
+      - name: Arkivera signerad kundapp
         run: |
+          set -e
           mkdir -p build
           cd ios/App
           xcodebuild \
-            -workspace App.xcworkspace \
+            -project App.xcodeproj \
             -scheme App \
             -configuration Release \
             -destination 'generic/platform=iOS' \
-            -archivePath ../../build/AvenynTaxi.xcarchive \
+            -archivePath ../../build/AvenynTaxiCustomer.xcarchive \
             archive
 
       - name: Exportera signerad IPA
         run: |
+          set -e
           mkdir -p build/export
           xcodebuild \
             -exportArchive \
-            -archivePath build/AvenynTaxi.xcarchive \
+            -archivePath build/AvenynTaxiCustomer.xcarchive \
             -exportPath build/export \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
 
-          echo "Exporterade filer:"
           find build/export -maxdepth 2 -type f -print
           test -n "$(find build/export -maxdepth 1 -name '*.ipa' -print -quit)"
 
-      - name: Ladda upp signerad IPA artifact
+      - name: Ladda upp IPA-artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Avenyn-Taxi-App-Store-IPA
+          name: Avenyn-Taxi-Customer-Build-16-IPA
           path: build/export/*.ipa
           if-no-files-found: error
           retention-days: 14
@@ -232,28 +177,30 @@ jobs:
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
         run: |
+          set -e
           KEY_DIR="$HOME/.appstoreconnect/private_keys"
           mkdir -p "$KEY_DIR"
           printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
           chmod 600 "$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
           test -s "$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
 
-      - name: Validera och ladda upp IPA till App Store Connect
+      - name: Validera och ladda upp Build 16 till App Store Connect
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
+          set -e
           IPA_FILE="$(find build/export -maxdepth 1 -name '*.ipa' -print -quit)"
           test -n "$IPA_FILE"
 
-          echo "Validerar IPA mot App Store Connect..."
+          echo "Validerar Build 16..."
           xcrun altool --validate-app \
             --file "$IPA_FILE" \
             --type ios \
             --apiKey "$APP_STORE_CONNECT_KEY_ID" \
             --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
 
-          echo "Laddar upp IPA till App Store Connect..."
+          echo "Laddar upp Build 16 till App Store Connect..."
           xcrun altool --upload-app \
             --file "$IPA_FILE" \
             --type ios \
