@@ -49,6 +49,17 @@ jobs:
           /usr/libexec/PlistBuddy -c "Delete :NSLocationWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string Din plats används för att hitta din upphämtningsadress och visa taxibilar nära dig." "$PLIST"
 
+          /usr/libexec/PlistBuddy -c "Delete :NSLocationAlwaysAndWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string Avenyn Taxi använder platsdata för platsbaserade funktioner som att hitta din upphämtningsadress. Kundappen använder inte platsen för reklamspårning." "$PLIST"
+
+          /usr/libexec/PlistBuddy -c "Delete :NSLocationAlwaysUsageDescription" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string Avenyn Taxi använder platsdata för platsbaserade funktioner som att hitta din upphämtningsadress. Kundappen använder inte platsen för reklamspårning." "$PLIST"
+
+          echo "Verifierar location privacy strings:"
+          /usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysAndWhenInUseUsageDescription" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysUsageDescription" "$PLIST"
+
       - name: Installera Apple-certifikat och provisioning profile
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
@@ -84,7 +95,7 @@ jobs:
           test "$APP_IDENTIFIER" = "YY8P86Q275.se.avenyntaxi.app"
           cp "$PP_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
 
-      - name: Konfigurera signering och Build 16
+      - name: Konfigurera signering och Build 17
         run: |
           set -e
           gem install xcodeproj --no-document
@@ -103,13 +114,13 @@ jobs:
             config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'se.avenyntaxi.app'
             config.build_settings['PRODUCT_NAME'] = 'Avenyn Taxi'
             config.build_settings['MARKETING_VERSION'] = '1.0'
-            config.build_settings['CURRENT_PROJECT_VERSION'] = '16'
+            config.build_settings['CURRENT_PROJECT_VERSION'] = '17'
             config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
             config.build_settings['TARGETED_DEVICE_FAMILY'] = '1'
           end
 
           project.save
-          puts 'Avenyn Taxi kundapp konfigurerad som version 1.0 build 16.'
+          puts 'Avenyn Taxi kundapp konfigurerad som version 1.0 build 17.'
           RUBY
 
       - name: Skapa ExportOptions.plist
@@ -167,7 +178,7 @@ jobs:
       - name: Ladda upp IPA-artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Avenyn-Taxi-Customer-Build-16-IPA
+          name: Avenyn-Taxi-Customer-Build-17-IPA
           path: build/export/*.ipa
           if-no-files-found: error
           retention-days: 14
@@ -184,7 +195,7 @@ jobs:
           chmod 600 "$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
           test -s "$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
 
-      - name: Validera och ladda upp Build 16 till App Store Connect
+      - name: Validera och ladda upp Build 17 till App Store Connect
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
@@ -193,14 +204,14 @@ jobs:
           IPA_FILE="$(find build/export -maxdepth 1 -name '*.ipa' -print -quit)"
           test -n "$IPA_FILE"
 
-          echo "Validerar Build 16..."
+          echo "Validerar Build 17..."
           xcrun altool --validate-app \
             --file "$IPA_FILE" \
             --type ios \
             --apiKey "$APP_STORE_CONNECT_KEY_ID" \
             --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
 
-          echo "Laddar upp Build 16 till App Store Connect..."
+          echo "Laddar upp Build 17 till App Store Connect..."
           xcrun altool --upload-app \
             --file "$IPA_FILE" \
             --type ios \
