@@ -163,6 +163,7 @@ export default function Page() {
 
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [canOpenEconomy, setCanOpenEconomy] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
 
   const [loginEmail, setLoginEmail] = useState("");
@@ -320,6 +321,27 @@ export default function Page() {
   useEffect(() => {
     if (!supabase || !session) return;
     void loadAll();
+  }, [supabase, session]);
+
+  useEffect(() => {
+    if (!supabase || !session) {
+      setCanOpenEconomy(false);
+      return;
+    }
+    let cancelled = false;
+    const checkEconomyAccess = async () => {
+      const [admin, dispatch] = await Promise.all([
+        supabase.rpc("is_admin"),
+        supabase.rpc("is_dispatch_admin"),
+      ]);
+      if (!cancelled) {
+        setCanOpenEconomy(admin.data === true || dispatch.data === true);
+      }
+    };
+    void checkEconomyAccess();
+    return () => {
+      cancelled = true;
+    };
   }, [supabase, session]);
 
   async function loadAll() {
@@ -1314,6 +1336,14 @@ export default function Page() {
             <div className="hidden rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600 sm:block">
               {session.user.email}
             </div>
+            {canOpenEconomy ? (
+              <a
+                href="/ekonomi"
+                className="rounded-2xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+              >
+                Ekonomi
+              </a>
+            ) : null}
             <button
               onClick={handleLogout}
               className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
