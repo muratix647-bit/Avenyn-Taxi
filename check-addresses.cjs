@@ -1,0 +1,11 @@
+const fs=require('fs'),ts=require('typescript'),assert=require('node:assert/strict');
+const source=ts.transpileModule(fs.readFileSync('app/api/addresses/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+const deps={LANDVETTER_AIRPORT:{id:'airport',label:'Landvetter',lat:57.66,lng:12.28},GOTHENBURG_CENTRAL:{id:'central'},isGothenburgCentralSearch:()=>false,identifyZone:()=>null,publicSupabase:()=>({from:()=>({select:()=>({eq:async()=>({data:[]})})})}),reverseAreaHierarchy:async()=>({values:[],primary:null})};
+const feature={properties:{name:'Tråkärrsslättvägen',city:'Göteborg',countrycode:'SE',osm_id:12},geometry:{coordinates:[11.99,57.57]}};
+let mode='slow',calls=0;const seen=[];
+async function fetchMock(url,options){calls++;seen.push(url);if(mode==='error')throw Error('provider down');if(mode==='empty')return Response.json({features:[]});if(mode==='slow')await new Promise((resolve,reject)=>{const t=setTimeout(resolve,2100);options.signal.addEventListener('abort',()=>{clearTimeout(t);reject(Error('timeout'))},{once:true})});return Response.json({features:[feature]});}
+const exportsObj={};new Function('require','exports','fetch',source)(()=>deps,exportsObj,fetchMock);
+(async()=>{let r=await exportsObj.GET(new Request('https://test/api/addresses?q=Träkärrsslättsvägen'));assert.equal(r.status,200);assert.equal((await r.json())[0].primary,'Tråkärrsslättvägen');assert(!seen.some(u=>u.includes('nominatim.openstreetmap.org/search')));
+mode='error';r=await exportsObj.GET(new Request('https://test/api/addresses?q=TestFailure'));assert.equal(r.status,503);assert.equal(r.headers.get('cache-control'),'no-store');mode='ok';r=await exportsObj.GET(new Request('https://test/api/addresses?q=TestFailure'));assert.equal(r.status,200);assert((await r.json()).length);
+mode='empty';r=await exportsObj.GET(new Request('https://test/api/addresses?q=Nothing'));assert.equal(r.headers.get('cache-control'),'no-store');
+mode='ok';r=await exportsObj.GET(new Request('https://test/api/addresses?lat=57.71&lng=11.98'));const p=await r.json();assert.equal(p.lat,57.71);assert.equal(p.lng,11.98);console.log('PASS: slow provider, error/recovery, empty results, reverse coordinates');})().catch(e=>{console.error(e);process.exitCode=1});

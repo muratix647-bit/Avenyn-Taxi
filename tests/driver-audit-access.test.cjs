@@ -1,0 +1,12 @@
+const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict');
+function harness({admin=false,own=true}={}){
+ const queries=[],inserts=[];
+ const db={from(table){const filters=[];const q={select(){return q},eq(k,v){filters.push([k,v]);return q},neq(k,v){filters.push(['not:'+k,v]);return q},in(){return q},is(){return q},order(){return q},limit(){return q},insert(row){inserts.push(row);return Promise.resolve({error:null})},single(){return Promise.resolve({data:table==='bookings'?{driver_id:'self',status:'accepted'}:{id:'self'},error:null})},maybeSingle(){return Promise.resolve({data:own?{id:'trip'}:null,error:null})},then(resolve){queries.push({table,filters});return Promise.resolve({data:[],error:null}).then(resolve)}};return q}};
+ const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync('app/api/driver-audit/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports,require:()=>({adminSupabase:()=>db,requireSupabaseUser:async()=>({user:{id:'user'},supabase:{rpc:async()=>({data:admin,error:null})}})}),Response,URL,Set,Map,String,Promise});return {api:exports,queries,inserts};
+}
+(async()=>{
+ let h=harness();assert.equal((await h.api.GET(new Request('https://test/api/driver-audit?bookingId=other'))).status,200);const q=h.queries.find(q=>q.table==='driver_action_log');assert.ok(q.filters.some(([k,v])=>k==='driver_id'&&v==='self'));assert.ok(q.filters.some(([k])=>k==='not:action'));assert.ok(!h.queries.some(q=>q.table==='booking_status_history'),'driver cannot read other actors status history');
+ h=harness({own:false});const req=()=>new Request('https://test/api/driver-audit',{method:'POST',body:JSON.stringify({bookingId:'trip',action:'note_saved',note:'test'})});assert.equal((await h.api.POST(req())).status,403);assert.equal(h.inserts.length,0);
+ h=harness();assert.equal((await h.api.POST(req())).status,200);assert.equal(h.inserts[0].driver_id,'self');assert.equal(h.inserts[0].actor_id,'user');assert.equal(h.inserts[0].action,'note_saved');
+ assert.equal((await h.api.POST(new Request('https://test/api/driver-audit',{method:'POST',body:JSON.stringify({bookingId:'trip',action:'note_removed'})}))).status,200);assert.equal(h.inserts.length,2,'removal appends an event instead of deleting prior text');assert.equal(h.inserts[0].details.note,'test');console.log('PASS: own-driver audit isolation, note ownership, server actor identity, append-only removal');
+})().catch(e=>{console.error(e);process.exit(1)});

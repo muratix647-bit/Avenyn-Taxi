@@ -1,0 +1,9 @@
+"use client";
+import {useEffect,useRef,useState} from "react";
+import {Pause,Play} from "lucide-react";
+export default function GothenburgPromo(){
+ const video=useRef<HTMLVideoElement>(null),[enabled,setEnabled]=useState(false),[paused,setPaused]=useState(false),[failed,setFailed]=useState(false);
+ useEffect(()=>{const m=window.matchMedia("(prefers-reduced-motion: reduce)");const update=()=>setEnabled(!m.matches);update();m.addEventListener("change",update);return()=>m.removeEventListener("change",update);},[]);
+ useEffect(()=>{const v=video.current;if(!v||!enabled||failed)return;let visible=false;const sync=()=>{if(visible&&!paused&&!document.hidden)v.play().catch(()=>{});else v.pause();};const obs=new IntersectionObserver(([e])=>{visible=e.isIntersecting;sync();},{threshold:.2});obs.observe(v);document.addEventListener("visibilitychange",sync);return()=>{obs.disconnect();document.removeEventListener("visibilitychange",sync);v.pause();};},[enabled,paused,failed]);
+ return <figure className="gothenburgPromo"><div className="gothenburgPromoMedia"><img src="/gothenburg-promo-poster.webp" width="1280" height="720" alt="Genererad Göteborgsvy med Avenyn och Götaplatsen" loading="lazy"/>{enabled&&!failed&&<video ref={video} loop muted playsInline preload="none" poster="/gothenburg-promo-poster.webp" aria-label="Animerad Göteborgspresentation: Avenyn, Liseberg, Karlatornet, Oceana och Delsjön" onError={()=>setFailed(true)}><source src="/gothenburg-promo.mp4" type="video/mp4"/></video>}{enabled&&!failed&&<button type="button" aria-label={paused?"Spela Göteborgsfilmen":"Pausa Göteborgsfilmen"} aria-pressed={paused} onClick={()=>setPaused(!paused)}>{paused?<Play/>:<Pause/>}</button>}</div><figcaption><strong>Upptäck Göteborg med Avenyn Taxi</strong><span>Avenyn · Liseberg · Karlatornet · Oceana · Delsjön</span><small>Genererade miljöbilder med animerad kamerarörelse.</small></figcaption></figure>;
+}

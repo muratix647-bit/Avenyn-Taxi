@@ -1,0 +1,152 @@
+/* Avenyn's focused driving view. Controls stay in the web sheet, below native navigation. */
+.driverShell.isDrivingFocus .appHeader,
+.driverShell.isDrivingFocus .driverBottomNav{display:none}
+.driverShell.isDrivingFocus .driverWorkView{height:100dvh;min-height:180px}
+.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip:not(.isOpen){
+ display:flex;flex-direction:column;align-items:stretch;gap:0;padding:0 12px calc(8px + env(safe-area-inset-bottom));
+ border:0;border-top:4px solid #ffd835;border-radius:24px 24px 0 0;background:#fff;
+ box-shadow:0 -6px 28px #07365026;max-height:65%;overflow-y:auto;
+}
+.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip .driverSheetToggle{
+ order:0;position:relative;padding:17px 0 8px;border:0;background:#fff;border-radius:18px 18px 0 0;min-height:80px;color:#10394d;
+}
+.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip .driverSheetHandle{display:block;top:5px;width:36px;height:4px;left:calc(50% - 18px);background:#aac0cc}
+.driverFocusIdentity{width:100%;display:flex;align-items:center;gap:10px;min-width:0}
+.driverFocusIdentity>img{width:38px;height:38px;object-fit:contain;flex:none}
+.driverFocusIdentity>span:nth-child(2){display:grid;gap:2px;flex:1;min-width:0}
+.driverShell.isDrivingFocus .driverSheetToggle .driverFocusIdentity small{display:block;color:#416071;font-size:12px;font-weight:700}
+.driverShell.isDrivingFocus .driverSheetToggle .driverFocusIdentity small:after{content:none}
+.driverFocusIdentity strong{font-size:20px;line-height:1.15;color:#10394d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.driverFocusAddress{font-size:12px;color:#496776;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.driverFocusDetails{font-size:12px;font-weight:800;color:#007eae;background:#eaf6fc;border-radius:12px;padding:13px 8px;flex:none}
+.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip .driverQuickTrip{order:1;display:grid;grid-template-columns:minmax(0,1fr) 60px;gap:8px;padding:0 0 6px;min-width:0}
+.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip .driverQuickTrip>div{display:none}
+.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip .driverQuickTrip button{min-height:52px;font-size:17px;font-weight:800;border-radius:14px;padding:10px;background:#007ea8;color:#fff;border:0;max-width:none}
+.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip .driverQuickTrip .driverQuickUndo{background:#edf4f7;color:#254b60;border:1px solid #cedee7;display:grid;place-items:center;gap:1px;padding:5px;font-size:11px}
+.driverQuickUndo svg{width:18px;height:18px}
+.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip .driverCompactBookings{order:2;padding:0;border-top:1px solid #e5edf2}
+.driverShell.isDrivingFocus .driverCompactBookingRow button{border:0;background:transparent;min-height:44px;padding:5px 8px;color:#36566a;font-size:12px}
+.driverShell.isDrivingFocus .driverCompactBookingRow .bookingAlertOpen b{background:#e8f4fa;color:#006d96}
+.driverShell.isDrivingFocus .driverMapWorkspace.hasDrivingTrip .driverMapTop,
+.driverShell.isDrivingFocus .driverMapWorkspace.hasDrivingTrip .driverMapTools{display:none}
+.driverShell.isDrivingFocus .driverMapNotice{top:12px;bottom:auto;max-width:calc(100% - 24px)}
+.driverWebEstimate{position:absolute;z-index:5;left:12px;right:12px;bottom:calc(var(--driver-sheet-height,200px) + 12px);display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 16px;background:#fff;border:1px solid #bed5e2;border-left:5px solid #007ea8;border-radius:16px;box-shadow:0 4px 18px #07365020;color:#10394d;pointer-events:none}
+.driverWebEstimate strong{font-size:28px;font-weight:850;line-height:1.2}.driverWebEstimate span{font-size:18px;font-weight:750}
+.driverShell.isDrivingFocus .mapResetView{top:12px;bottom:auto;min-height:44px}
+.driverShell.isDrivingFocus .toastMsg{top:12px}
+.driverShell .driverSheetToggle:focus-visible,.driverShell .driverQuickTrip button:focus-visible{outline:3px solid #ffcf20;outline-offset:2px}
+@media(min-width:800px){.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip:not(.isOpen){left:calc(50% - 280px);right:calc(50% - 280px)}.driverShell.isDrivingFocus .driverWebEstimate{left:calc(50% - 268px);right:calc(50% - 268px)}}
+@media(max-height:500px){.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip:not(.isOpen){max-height:58%;padding-bottom:4px}.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip .driverSheetToggle{min-height:56px;padding-top:12px}.driverFocusAddress{display:none}.driverFocusIdentity strong{font-size:17px}.driverWebEstimate strong{font-size:22px}.driverWebEstimate{padding:7px 12px}}
+
+/* One compact menu, with the map occupying the remaining screen. */
+.driverShell.isMapWork .driverBottomNav{display:none}
+.driverShell.isMapWork .driverWorkView{height:calc(100dvh - 70px)}
+.driverShell.isDrivingFocus .driverWorkView{height:100dvh}
+.driverUnifiedMenu{display:block;margin:6px 12px 3px auto;padding:8px 14px;min-height:40px;border:0;border-radius:12px;background:#07394e;color:white;font-weight:750;font-size:13px;order:0}
+.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip .driverSheetToggle{min-height:56px;padding:7px 0 5px}
+.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip:not(.isOpen){max-height:42%;border-top-width:3px;border-radius:20px 20px 0 0}
+.driverShell.isDrivingFocus .driverFocusIdentity strong{font-size:17px}
+.driverShell.isDrivingFocus .driverFocusIdentity>img{width:30px;height:30px}
+.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip .driverQuickTrip button{min-height:46px;font-size:15px}
+.driverShell.isDrivingFocus .driverCompactBookings{display:none}
+.driverReturnMap{min-height:44px;padding:10px 16px;border:0;border-radius:12px;background:#07394e;color:white;font-weight:750}
+.driverMoreMenu{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.driverMoreMenu button,.driverMoreMenu a{min-height:64px;padding:14px;border:1px solid #c8e0eb;border-radius:16px;background:#f1f9fc;color:#113e52;text-align:left;font-weight:700}
+
+/* Navigation choices remain below the native map so they are always tappable. */
+.driverNavigationControls{display:flex;gap:6px;padding:6px 8px;order:2;grid-column:1/-1;flex-shrink:0}
+.driverNavigationControls button{flex:1;min-width:0;min-height:44px;padding:6px;border:1px solid #9cbfce;border-radius:10px;background:#edf6fa;color:#07394e;font-size:12px;font-weight:800}
+.driverNavigationControls button[aria-pressed=true]{background:#007ea8;color:white;border-color:#007ea8}
+.driverNavigationControls .closeNavigation{flex:.8;background:#fff0f1;color:#8e1730;border-color:#c9909b}
+.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip:not(.isOpen){max-height:34dvh;padding:0 8px calc(4px + env(safe-area-inset-bottom));border-radius:14px 14px 0 0}
+.driverShell.isDrivingFocus .driverUnifiedMenu{position:absolute;right:8px;top:4px;min-height:36px;padding:6px 10px;margin:0;z-index:2}
+.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip .driverSheetToggle{min-height:46px;padding:5px 72px 4px 0}
+.driverShell.isDrivingFocus .driverFocusIdentity>img,.driverShell.isDrivingFocus .driverFocusDetails,.driverShell.isDrivingFocus .driverQuickTrip.isWaiting>.driverTripTiming{display:none!important}
+.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip .driverQuickTrip.isWaiting{display:grid;grid-template-columns:1fr}
+.driverShell.isDrivingFocus .driverTripSheet.hasActiveTrip .driverQuickTrip.isWaiting>button{min-height:44px;font-size:20px}
+.driverShell.isDrivingFocus .driverNavigationControls{padding:4px 0}
+
+/* Driver-selected map area; the embedded map observes the sheet bounds. */
+.driverMapPreferences{display:flex;align-items:center;gap:8px;order:3;grid-column:1/-1;padding:4px 0 6px;flex-shrink:0}
+.driverMapPreferences label{display:flex;align-items:center;gap:6px;flex:1;font-size:12px;font-weight:700;color:#07394e}
+.driverMapPreferences select,.driverMapPreferences button{min-height:44px;border:1px solid #9cbfce;border-radius:10px;background:#edf6fa;color:#07394e;padding:6px;font-size:12px;font-weight:750}
+.driverMapPreferences button{flex:1}.driverMapPreferences button[aria-pressed=true]{background:#ffdf38}
+.driverShell.isDrivingFocus .driverWorkView[data-map-size="small"] .driverTripSheet:not(.isOpen){height:52%;max-height:65%}
+.driverShell.isDrivingFocus .driverWorkView[data-map-size="normal"] .driverTripSheet:not(.isOpen){height:42%;max-height:65%}
+.driverShell.isDrivingFocus .driverWorkView[data-map-size="large"] .driverTripSheet:not(.isOpen){height:32%;max-height:65%;min-height:230px}
+.driverShell.isDrivingFocus .driverQuickTrip.isWaiting>.driverTripTiming{display:grid!important}
+.driverMapWorkspace .leaflet-control-zoom a{width:44px;height:44px;line-height:44px;font-size:28px}
+.driverMapWorkspace .customerGeoCanvas{touch-action:none}
+
+/* Keep the trip sheet in one scroll flow and above Android system navigation. */
+.driverShell.isMapWork .driverTripSheet{bottom:0;padding-bottom:max(24px,env(safe-area-inset-bottom));scroll-padding-bottom:32px}
+.driverShell.isMapWork .driverTripSheet.isOpen{padding-bottom:max(24px,env(safe-area-inset-bottom));overflow-y:auto;overflow-x:hidden}
+.driverShell.isMapWork .driverTripSheet.isOpen .driverSheetToggle{position:relative;top:auto;z-index:auto}
+.driverShell.isMapWork .driverTripSheet .driverUnifiedMenu{display:none}
+.driverShell.isMapWork .driverMapPreferences{padding:6px 10px;flex-wrap:wrap;gap:6px;min-width:0}
+.driverShell.isMapWork .driverMapPreferences label{flex:1 1 145px;min-width:0}
+.driverShell.isMapWork .driverMapPreferences button{flex:1 1 145px;min-width:0}
+.driverShell.isMapWork .driverMapPreferences select{width:auto;flex:1;min-width:0;font-size:14px}
+.driverShell.isMapWork .driverMapTools{top:86px;right:10px;gap:6px}
+.driverShell.isMapWork .driverMapTools button{width:52px;min-height:46px;height:46px;border-radius:12px;font-size:11px;padding:4px}
+.driverShell.isMapWork .driverMapTools button svg{width:18px;height:18px}
+.driverShell.isMapWork .driverMapTop{top:10px;left:10px;right:10px}
+.driverShell.isMapWork .driverEarningsPill{padding:8px 12px;min-height:60px}
+.driverShell.isMapWork .driverEarningsPill b{font-size:20px}
+.driverShell.isMapWork .driverMapOnline{min-height:44px;padding:8px 12px;font-size:15px}
+
+/* Main destinations stay available without keeping a future booking expanded. */
+.driverMainTabs{position:fixed;z-index:60;bottom:0;left:0;right:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;padding:6px 6px max(16px,env(safe-area-inset-bottom));background:#fff;border-top:1px solid #bdd7e3}
+.driverMainTabs button{border:0;background:#edf6fa;color:#214e61;border-radius:10px;min-height:48px;padding:5px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11px;font-weight:800;min-width:0}
+.driverMainTabs button.active{background:#ffdf38;color:#07394e}.driverMainTabs svg{width:20px;height:20px}
+.driverShell.isMapWork .driverWorkView{height:calc(100dvh - 146px);min-height:180px}
+.driverShell.isDrivingFocus .driverWorkView{height:calc(100dvh - 78px)}
+.driverShell.isMapWork .driverTripSheet.isQuietMap{display:block;height:auto;min-height:0;max-height:none;padding:8px;border-radius:18px 18px 0 0;overflow:hidden}
+.driverShell.isMapWork .driverTripSheet.isQuietMap>*{display:none!important}
+.driverShell.isMapWork .driverTripSheet.isQuietMap>.driverNextBooking{display:grid!important;grid-template-columns:1fr auto;gap:3px 10px;width:100%;border:1px solid #c1d8e3;border-left:5px solid #ffdb30;border-radius:12px;background:white;padding:10px 12px;color:#07394e;text-align:left;min-height:56px}
+.driverNextBooking>span:first-child{font-size:12px}.driverNextBooking>strong{font-size:15px;grid-column:1}.driverNextBooking>span:last-child{grid-column:2;grid-row:1/3;align-self:center;font-size:13px;font-weight:800}
+.driverShell .driverTripSheet[data-booking-tab="available"].isOpen>.driverCallRow,
+.driverShell .driverTripSheet[data-booking-tab="available"].isOpen>.driverNavigationControls,
+.driverShell .driverTripSheet[data-booking-tab="available"].isOpen>.driverMapPreferences{display:none}
+.driverShell .driverTripSheet .tripList[hidden],.driverShell .driverTripSheet .prebookingPool[hidden]{display:none!important}
+.driverShell .driverAccountView,.driverShell .driverLedger{padding-bottom:90px}
+
+/* Calm map surface: one status strip and a single column of map controls. */
+.driverShell.isMapWork .driverMapWorkspace .driverMapTop{top:10px;left:12px;right:12px;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #d6e3e9;border-radius:16px;padding:6px;box-shadow:0 3px 12px #10394d12}
+.driverShell.isMapWork .driverMapWorkspace .driverMapTop button{max-width:none;min-height:44px;box-shadow:none;border:0;border-radius:10px;padding:5px 10px}
+.driverShell.isMapWork .driverMapWorkspace .driverEarningsPill{flex:1;background:transparent;color:#10394d;text-align:left;gap:0}
+.driverShell.isMapWork .driverMapWorkspace .driverEarningsPill small{font-size:11px;color:#536c78;opacity:1}
+.driverShell.isMapWork .driverMapWorkspace .driverEarningsPill b{font-size:19px;line-height:1.2}
+.driverShell.isMapWork .driverMapWorkspace .driverMapOnline{font-size:14px;gap:7px;background:#edf4f7}
+.driverShell.isMapWork .driverMapWorkspace .driverMapOnline.on{background:#e1f5e9;color:#096440}
+.driverShell.isDrivingFocus .driverMapWorkspace.hasDrivingTrip .driverMapTop{display:none}
+.driverShell .driverLibreZoom{top:86px;right:12px;gap:0;border:1px solid #cbdae2;border-radius:12px;overflow:hidden;box-shadow:0 3px 12px #10394d14}
+.driverShell .driverLibreZoom button{width:44px;height:44px;border:0;border-radius:0;background:white}
+.driverShell .driverLibreZoom button+button{border-top:1px solid #e1eaf0}
+.driverShell .driverLibreLocate{top:184px;bottom:auto;right:12px;width:44px;height:44px;border:1px solid #cbdce5;border-radius:12px;background:white;color:#007da5;box-shadow:0 3px 12px #10394d14}
+.driverShell .driverLibreLocate svg{width:23px;height:23px}
+.driverShell .driverLibre .maplibregl-ctrl-attrib,.driverShell .driverLibre .maplibregl-ctrl-attrib a{font-size:10px!important;line-height:14px!important}
+.driverShell .driverLibre .maplibregl-ctrl-attrib{max-width:calc(100vw - 30px);padding:2px 5px;border-radius:5px;box-shadow:none}
+.driverShell .driverLibre .maplibregl-ctrl-attrib.maplibregl-compact{padding-right:24px;min-height:24px}
+.driverShell.isMapWork .driverTripSheet.isQuietMap{border:0;border-top:1px solid #d5e3ea;box-shadow:0 -3px 14px #12394c0c;border-radius:16px 16px 0 0;background:#f7fafc;padding:8px 12px}
+.driverShell.isMapWork .driverTripSheet.isQuietMap>.driverNextBooking{border:1px solid #d7e4eb;border-left:3px solid #ffdb30;border-radius:12px;min-height:58px;padding:8px 12px;box-shadow:none}
+.driverShell .driverMainTabs{gap:4px;padding-top:7px;border-top-color:#e1e9ee}
+.driverShell .driverMainTabs button{position:relative;border-radius:12px;background:transparent;font-size:10px;min-height:52px;gap:4px}
+.driverShell .driverMainTabs button.active{background:#fff3b1;color:#07394e}
+.driverShell .driverMainTabs button>span{white-space:nowrap}
+.driverTabCount{position:absolute;top:3px;right:9px;min-width:17px;height:17px;line-height:17px;border-radius:9px;background:#e1edf3;color:#16495f;font-size:10px;text-align:center;padding:0 3px}
+.driverShell .driverMainTabs svg{width:21px;height:21px}
+
+/* Expansion resizes the same map; the native route remains mounted. */
+.driverShell .driverTripSheet>.driverExpandMap{display:block!important;order:-1;flex-shrink:0;width:calc(100% - 16px);margin:6px 8px;min-height:44px;padding:8px 12px;border:1px solid #c5dae4;border-radius:10px;background:#fff;color:#07516c;font-size:14px;font-weight:800;text-align:center}
+.driverShell.isExpandedMap .appHeader,.driverShell.isExpandedMap .driverMainTabs{display:none!important}
+.driverShell.isExpandedMap.isMapWork .driverWorkView{height:100dvh!important;min-height:180px}
+.driverShell.isExpandedMap.isMapWork .driverTripSheet{display:block!important;height:auto!important;min-height:0!important;max-height:none!important;left:0;right:0;bottom:0;padding:4px 8px max(16px,env(safe-area-inset-bottom))!important;border-radius:0;border:0;border-top:1px solid #c5dae4;background:white}
+.driverShell.isExpandedMap.isMapWork .driverTripSheet>*{display:none!important}
+.driverShell.isExpandedMap.isMapWork .driverTripSheet>.driverExpandMap{display:block!important;background:#07394e;color:white;border:0;margin:0;width:100%;min-height:44px}
+.driverShell.isExpandedMap .driverMapTop{display:none!important}
+.driverShell.isExpandedMap .driverLibreZoom{top:16px}.driverShell.isExpandedMap .driverLibreLocate{top:114px}
+.driverShell.isExpandedMap.isMapWork .driverTripSheet.isQuietMap>.driverNextBooking{display:none!important}
+
+/* Keep messaging reachable without crowding the app header. */
+.driverShell .driverMainTabs.hasChat{grid-template-columns:repeat(5,minmax(0,1fr))}

@@ -1,0 +1,37 @@
+begin;
+do $test$
+declare u uuid:=gen_random_uuid(); u2 uuid:=gen_random_uuid(); d uuid; d2 uuid; b uuid; b2 uuid; r public.bookings; pool jsonb; rejected boolean;
+begin
+ insert into auth.users(id) values(u),(u2);
+ insert into public.drivers(auth_user_id,full_name,approved) values(u,'ROLLBACK test driver',true) returning id into d;
+ insert into public.drivers(auth_user_id,full_name,approved) values(u2,'ROLLBACK second driver',true) returning id into d2;
+ insert into public.vehicles(name,driver_id) values('ROLLBACK car',d),('ROLLBACK second car',d2);
+ insert into public.bookings(customer_name,pickup_address,booking_date,pickup_time,status,booking_number) overriding system value values('ROLLBACK TEST','TEST pickup',current_date+30,'12:00','scheduled',-900001) returning id into b;
+ insert into public.bookings(customer_name,pickup_address,booking_date,pickup_time,status,booking_number) overriding system value values('ROLLBACK TEST','TEST overlap',current_date+30,'12:30','scheduled',-900002) returning id into b2;
+ perform set_config('request.jwt.claim.sub',u::text,true);
+ pool:=public.driver_prebooking_pool();
+ if not exists(select 1 from jsonb_array_elements(pool) x where x->>'id'=b::text) then raise exception 'TEST FAIL missing pool'; end if;
+ if exists(select 1 from jsonb_array_elements(pool) x where x ? 'customer_phone' or x ? 'tracking_token') then raise exception 'TEST FAIL privacy'; end if;
+ r:=public.driver_claim_prebooking(b);
+ if r.driver_id<>d or r.status<>'accepted' or r.confirmed_at is null then raise exception 'TEST FAIL claim'; end if;
+ if not exists(select 1 from public.driver_action_log where booking_id=b and actor_id=u and driver_id=d and details->>'to'='accepted') then raise exception 'TEST FAIL audit'; end if;
+ r:=public.driver_claim_prebooking(b);
+ rejected:=false;
+ begin perform public.driver_claim_prebooking(b2); exception when others then rejected:=true; end;
+ if not rejected then raise exception 'TEST FAIL overlap'; end if;
+ perform set_config('request.jwt.claim.sub',u2::text,true);
+ rejected:=false;
+ begin perform public.driver_claim_prebooking(b); exception when others then rejected:=true; end;
+ if not rejected then raise exception 'TEST FAIL double claim'; end if;
+ update public.vehicles set passenger_capacity=1 where driver_id=d2;
+ update public.bookings set passengers=4 where id=b2;
+ rejected:=false;
+ begin perform public.driver_claim_prebooking(b2); exception when others then rejected:=true; end;
+ if not rejected then raise exception 'TEST FAIL capacity'; end if;
+ update public.drivers set approved=false where id=d2;
+ rejected:=false;
+ begin perform public.driver_prebooking_pool(); exception when others then rejected:=true; end;
+ if not rejected then raise exception 'TEST FAIL unapproved'; end if;
+end $test$;
+rollback;
+select 'PASS: pool privacy, claim, server audit, idempotence, overlap, double claim, capacity, unapproved driver; all test data rolled back' result;

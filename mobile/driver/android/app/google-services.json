@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "26425773475",
+    "project_id": "avenyn-taxi",
+    "storage_bucket": "avenyn-taxi.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:26425773475:android:c14230bd9f7a1b6287de16",
+        "android_client_info": {
+          "package_name": "se.avenyntaxi.driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCe3exyrBqCZ55Mkll-S001kK__WqW3QfU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

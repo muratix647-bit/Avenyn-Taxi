@@ -1,0 +1,282 @@
+/* Logo palette for the public website, with visible selection and press feedback. */
+.customerSite:not(.customerBookingApp),.seoLanding{--navy:#07375d;--blue:#007cba;--blue2:#005e99;--yellow:#ffd329;--ink:#153b59;--muted:#577086;--line:#d1e5f1;--wash:#f0f8fd;background:#fff;color:#153b59}
+.customerSite:not(.customerBookingApp) .customerHeader{background:linear-gradient(135deg,#07517b,#007eb6);border-bottom-color:#ffd329;color:#fff;box-shadow:0 5px 20px #07538320}
+.customerSite:not(.customerBookingApp) .bookingHeroEditorial{background:radial-gradient(ellipse at 90% 0%,#39bdec55,transparent 60%),linear-gradient(130deg,#07517b,#0079ad);border-color:#3c9fc3}
+.customerSite:not(.customerBookingApp) .bookingHeroEditorial .heroCopy h1{color:#fff}
+.customerSite:not(.customerBookingApp) .bookingHeroEditorial .heroCopy h1 em{color:#ffd329}
+.customerSite:not(.customerBookingApp) .bookingHeroEditorial .heroCopy :is(.eyebrow,p){color:#e2f6ff}
+.customerSite:not(.customerBookingApp) .bookingHeroEditorial .streamlinedBooking{background:#fff;border-color:#b9dff0;border-top-color:#ffd329;box-shadow:0 18px 45px #03416535}
+.customerSite:not(.customerBookingApp) :is(.homeCompactIntro,.simplePageIntro,.appDownloadBanner){background:linear-gradient(135deg,#07517b,#0079ad);color:#fff;border-color:#62afd0}
+.customerSite:not(.customerBookingApp) .homeCompactIntro p{color:#e2f1fa}
+.customerSite:not(.customerBookingApp) .homeCompactIntro small{color:#ffd329}
+.customerSite:not(.customerBookingApp) .customerFooter{background:#074b73;border-top-color:#ffd329}
+.seoLanding :is(.seoHeader,.seoHero,.seoFinal,.seoFooter){background:linear-gradient(135deg,#07517b,#0079ad);color:#fff;border-color:#ffd329}
+.seoLanding .seoHero h1{color:#fff}
+.seoLanding .seoHero>div>p{color:#e2f1fa}
+.seoLanding .seoHero small{color:#ffd329}
+.seoLanding :is(.seoPrimary,.seoFinal>a){background:#ffd329;color:#07375d}
+/* Unselected = blue; selected = yellow. Selection remains tied to the actual route. */
+.customerSite .streamlinedBooking .airportShortcuts button,
+.customerSite .streamlinedBooking .rideTimeChoice button{background:#007cba;color:#fff;border-color:#005e99;box-shadow:0 2px 0 #005283}
+.customerSite .streamlinedBooking .airportShortcuts button[aria-pressed=true],
+.customerSite .streamlinedBooking .rideTimeChoice button[aria-pressed=true]{background:#ffd329;color:#07375d;border-color:#b18a00;box-shadow:inset 0 -3px 0 #c6a019}
+.customerSite .streamlinedBooking .airportShortcuts button{font-size:14px;min-height:48px}
+.customerSite:not(.customerBookingApp) :is(button,a,summary){transition:background-color .15s,color .15s,border-color .15s,box-shadow .15s}
+@media(hover:hover){
+.customerSite:not(.customerBookingApp) :is(.airportShortcuts button,.rideTimeChoice button,.homeAirportPriceGrid button,.addStopButton):not(:disabled):hover{background:#ffe67b;color:#07375d;border-color:#d7b128}
+.customerSite:not(.customerBookingApp) .streamlinedBooking .bookPrimary:not(:disabled):hover{background:#007cba;color:#fff;border-color:#005e99;box-shadow:0 3px 0 #005283}
+}
+.customerSite .streamlinedBooking :is(.airportShortcuts button,.rideTimeChoice button)[aria-pressed=true]:hover{background:#ffd329;color:#07375d;border-color:#b18a00}
+.customerSite:not(.customerBookingApp) .streamlinedBooking button:not(:disabled):active,
+.customerSite:not(.customerBookingApp) .customerHeader :is(a,button):active,
+.customerSite:not(.customerBookingApp) .homeAirportPriceGrid button:active,
+.customerSite:not(.customerBookingApp) :is(.homeDestinationChips a,.homeTravelActions a,.homeCompactIntro nav a,.customerMobileTabs a):active{background:#ffd329;color:#07375d;border-color:#b18a00;box-shadow:inset 0 2px 5px #735b1733}
+.customerSite:not(.customerBookingApp) .streamlinedBooking .bookPrimary:not(:disabled):active,
+.customerSite .streamlinedBooking :is(.airportShortcuts button,.rideTimeChoice button)[aria-pressed=true]:not(:disabled):active{background:#005e99;color:#fff;border-color:#004c7c}
+.customerSite:not(.customerBookingApp) :is(button,a,input,select,textarea,summary):focus-visible{outline:3px solid #ffd329;outline-offset:3px}
+.customerSite:not(.customerBookingApp) .bookingPanel :is(input,select,textarea):focus-visible{outline-color:#007cba;background:#fff9d9}
+@media(max-width:760px){.customerSite:not(.customerBookingApp) .customerHeader nav.show{background:#07517b;border-color:#69bddd}}
+@media(prefers-reduced-motion:reduce){.customerSite:not(.customerBookingApp) :is(button,a,summary){transition:none}}
+/* Area links: clear pointer, keyboard focus and immediate press feedback. */
+.seoLanding .seoRelated a{cursor:pointer;transition:background-color .15s,color .15s,border-color .15s}
+.seoLanding .seoRelated a:hover{background:#e4f4ff;border-color:#007cba;color:#07517b}
+.seoLanding .seoRelated a:active{background:#ffd329;border-color:#b18a00;color:#07375d}
+.seoLanding .seoRelated a:focus-visible{outline:3px solid #007cba;outline-offset:3px}
+.seoLanding .seoHeader .seoBrand{color:#fff}
+@media(prefers-reduced-motion:reduce){.seoLanding .seoRelated a{transition:none}}
+
+/* Reference-inspired booking layout: centred form over the existing city photo.
+   CSS only: all booking fields, conditions and handlers retain their behaviour. */
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial{
+ background:linear-gradient(120deg,#053753d9,#064965a8),url('/avenyn-gothenburg-hero.webp') center top/cover no-repeat;
+ padding:44px max(20px,calc((100% - 1080px)/2)) 52px;
+}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial>.heroCopy{text-align:center;max-width:980px;margin:0 auto 26px}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial .heroCopy .eyebrow{justify-content:center}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial .heroCopy h1{font-size:clamp(28px,3.4vw,44px);line-height:1.15}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial .heroCopy>p{margin:12px auto 0;max-width:740px}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial .streamlinedBooking{max-width:1000px;margin:0 auto;padding:26px 30px;border-radius:16px;background:#fff;box-shadow:0 20px 60px #00263955}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingColumns{display:block}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingDetailsColumn{border-left:0;border-top:1px solid #d1e5f1;padding:20px 0 0;margin-top:20px}
+.customerSite.homeRefresh:not(.customerBookingApp) .streamlinedBooking .airportShortcuts{max-width:640px;margin:0 auto 20px}
+.customerSite.homeRefresh:not(.customerBookingApp) .streamlinedBooking .panelTitle{margin-bottom:18px}
+.customerSite.homeRefresh:not(.customerBookingApp) .streamlinedBooking .panelTitle h2{font-size:21px}
+@media(min-width:761px){
+ .customerSite.homeRefresh:not(.customerBookingApp) .streamlinedBooking .modernRouteCard:not(:has(.routeSwapHandle)){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 20px;padding:16px}
+ .customerSite.homeRefresh:not(.customerBookingApp) .modernRouteCard:not(:has(.routeSwapHandle))>.routeConnector{display:none}
+ .customerSite.homeRefresh:not(.customerBookingApp) .modernRouteCard:not(:has(.routeSwapHandle))>.modernAddressField.pickup{grid-column:1;grid-row:1}
+ .customerSite.homeRefresh:not(.customerBookingApp) .modernRouteCard:not(:has(.routeSwapHandle))>.modernAddressField.destination{grid-column:2;grid-row:1}
+ .customerSite.homeRefresh:not(.customerBookingApp) .modernRouteCard:not(:has(.routeSwapHandle))>.addStopButton{grid-column:1/-1;grid-row:2;justify-self:start;margin:0}
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingOptionsGroup{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 20px;align-items:start}
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingOptionsGroup>.consolidatedExtras{margin:0}
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingDetailsColumn{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 18px}
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingDetailsColumn>div.bookingContactHeading,
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingDetailsColumn>.bookingAccountState,
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingDetailsColumn>details,
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingDetailsColumn>.bookingTermsNotice,
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingDetailsColumn>.bookPrimary{grid-column:1/-1}
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingDetailsColumn>.contactField{min-width:0;margin:0}
+ .customerSite.homeRefresh:not(.customerBookingApp) .streamlinedBooking .bookingContactHeading{margin:0}
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingDetailsColumn>.bookPrimary{max-width:420px;justify-self:end;width:100%}
+}
+@media(max-width:760px){
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial{padding:26px 12px 30px;background-position:60% top}
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial .streamlinedBooking{padding:18px 16px;border-radius:16px}
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial>.heroCopy{margin-bottom:20px}
+ .customerSite.homeRefresh:not(.customerBookingApp) .streamlinedBooking .airportShortcuts{margin-bottom:16px}
+}
+
+/* Anchor autocomplete to its field, not the stretched route grid or viewport. */
+.customerSite:not(.customerBookingApp) .bookingPanel .modernAddressField{
+ position:relative;align-self:start;overflow:visible;
+}
+.customerSite:not(.customerBookingApp) .bookingPanel .modernAddressField:focus-within{
+ z-index:45;
+}
+.customerSite:not(.customerBookingApp) .bookingPanel .modernAddressField>.modernSuggestions{
+ position:absolute;top:calc(100% + 4px);bottom:auto;left:0;right:0;
+ width:auto;margin:0;max-height:min(320px,45dvh);overflow-y:auto;
+ z-index:50;background:#fff;border:1px solid #9bc8e3;border-radius:12px;
+ box-shadow:0 12px 30px #07375d26;overscroll-behavior:contain;
+}
+.customerSite:not(.customerBookingApp) .bookingPanel .modernAddressField>.addressSearchStatus{
+ position:absolute;top:calc(100% + 4px);left:0;right:0;margin:0;z-index:49;
+}
+.customerSite:not(.customerBookingApp) .bookingPanel .modernRouteCard{overflow:visible}
+
+/* Homepage Google reviews: isolated from booking and native apps. */
+.avenynReviews{max-width:1160px;margin:36px auto;padding:clamp(20px,4vw,40px);background:#f3f9fd;border:1px solid #c9e1ef;border-radius:24px;color:#15394e}
+.avenynReviews>header{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap}.avenynReviews h2{font-size:clamp(25px,4vw,36px);margin:8px 0}.avenynReviews small{display:block}.avenynReviews>header small{color:#006c9c;font-weight:700;letter-spacing:.08em}.avenynReviews p{line-height:1.65}
+.avenynReviewRating{display:flex;flex-direction:column;gap:8px}.avenynReviewRating img{height:18px;width:auto;align-self:flex-start;margin:10px 10px 5px}.avenynReviewRating strong{font-size:32px}.avenynReviewRating strong span{font-size:17px;font-weight:400}
+.avenynReviewsSource{font-size:13px;color:#4d6575}.avenynReviewGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:20px 0}.avenynReviewGrid article{background:white;padding:22px;border:1px solid #dce8ef;border-radius:16px;overflow-wrap:anywhere}.avenynReviewGrid article header{display:flex;align-items:center;gap:10px}.avenynReviewGrid article header img{border-radius:50%;object-fit:cover}.avenynReviewGrid a{color:#006a9a;text-decoration:underline;text-underline-offset:3px}.avenynReviewGrid header a{font-weight:700}.avenynReviewGrid small{margin-top:4px;color:#526879}.avenynReviewStars{color:#966700;letter-spacing:2px}.avenynReviewText{white-space:pre-wrap;font-size:15px}.avenynReviewActions{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}.avenynReviewActions a{padding:13px 18px;border-radius:12px;background:#007daa;color:#fff;font-weight:700;text-decoration:none}.avenynReviewActions a+ a{background:#ffdb26;color:#15394e}.avenynReviewActions a:active{background:#15394e;color:#fff}.avenynReviews a:focus-visible{outline:3px solid #007daa;outline-offset:4px}
+@media(max-width:800px){.avenynReviewGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:560px){.avenynReviews{margin:24px 12px;border-radius:18px}.avenynReviewGrid{grid-template-columns:1fr}.avenynReviewActions a{width:100%;text-align:center}}
+
+.seoBreadcrumb{max-width:1160px;margin:16px auto;padding:0 24px;font-size:14px;color:#526879}.seoBreadcrumb a{color:#006a9a;text-decoration:underline;text-underline-offset:3px}
+
+/* Booking starts immediately below a compact page heading; supporting copy follows it. */
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial{padding-top:16px;display:block}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingFirstHeading{max-width:1000px;margin:0 auto 14px;text-align:center;color:#fff}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingFirstHeading h1{margin:0;font-size:clamp(24px,3vw,34px);line-height:1.15;color:#fff}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingFirstHeading p{margin:5px 0 0;font-size:16px;line-height:1.35;color:#ffd329}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial>.heroCopy{margin:28px auto 0}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial>.heroCopy h2{font-size:clamp(24px,3vw,36px);line-height:1.2;color:#fff}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial>.heroCopy h2 em{color:#ffd329}
+.customerSite.homeRefresh:not(.customerBookingApp) .streamlinedBooking .panelTitle{margin-bottom:10px}
+.customerSite.homeRefresh:not(.customerBookingApp) .streamlinedBooking .airportShortcuts{margin-bottom:10px}
+@media(max-width:760px){
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial{padding:12px 10px 28px}
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial .streamlinedBooking{padding:12px}
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingFirstHeading{margin-bottom:10px}
+ .customerSite.homeRefresh:not(.customerBookingApp) .streamlinedBooking .panelTitle small{display:none}
+ .customerSite.homeRefresh:not(.customerBookingApp) .streamlinedBooking .panelTitle h2{font-size:18px;margin:0}
+}
+
+/* Compact, readable booking in two stages. Expanded extras may grow naturally. */
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingFirstHeading{margin-bottom:10px;max-width:850px}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingFirstHeading small{display:block;font-size:12px;margin-bottom:4px;color:#e2f6ff}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingFirstHeading h1{font-size:28px;line-height:1.1}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingFirstHeading .bookingFirstTagline{margin:4px 0;font-size:20px}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingFirstHeading .bookingFirstDescription{color:#fff;font-size:14px;line-height:1.4;margin:8px auto 0;border-top:1px solid #ffffff40;padding-top:8px;max-width:760px}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial .streamlinedBooking{padding:14px 20px;max-width:900px}
+.customerSite.homeRefresh:not(.customerBookingApp) .bookingDetailsColumn{border:0;margin:0;padding:0}
+.bookingStepNav{display:flex;gap:10px;align-items:center;margin-bottom:10px;font-size:12px;color:#486677}
+.bookingStepNav button{font:inherit;color:inherit;border:0;background:#edf5fa;padding:8px 10px;border-radius:8px;min-height:36px;cursor:pointer}
+.bookingStepNav [aria-current="step"]{color:#005b89;font-weight:700}
+.bookingContinue{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:44px;margin-top:10px;border:0;border-radius:10px;background:#ffd329;color:#062c43;font:inherit;font-weight:700;cursor:pointer}
+.bookingContinue:focus-visible,.bookingStepNav button:focus-visible{outline:3px solid #0084bd;outline-offset:3px}
+@media(max-width:760px){
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial{padding-top:8px}
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingFirstHeading h1{font-size:23px}
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingFirstHeading .bookingFirstTagline{font-size:17px}
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingFirstHeading .bookingFirstDescription{font-size:12px;line-height:1.35;padding-top:5px;margin-top:5px}
+ .customerSite.homeRefresh:not(.customerBookingApp) .bookingHeroEditorial .streamlinedBooking{padding:10px}
+ .customerSite.homeRefresh:not(.customerBookingApp) .streamlinedBooking .panelTitle{display:none}
+ .customerSite.homeRefresh:not(.customerBookingApp) .streamlinedBooking .airportShortcuts{display:flex;gap:5px;margin-bottom:8px}
+ .customerSite.homeRefresh:not(.customerBookingApp) .streamlinedBooking .airportShortcuts button{flex:1;min-width:0;min-height:40px;height:auto;font-size:10px;padding:5px 3px}
+ .customerSite.homeRefresh:not(.customerBookingApp) .streamlinedBooking .airportShortcuts svg{display:none}
+ .bookingStepNav{margin-bottom:6px;font-size:11px}
+}
+
+/* Keep click-to-call above WhatsApp as the customer scrolls. */
+.customerSite .floatingContactActions{position:fixed;right:16px;bottom:calc(90px + env(safe-area-inset-bottom));z-index:85;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.customerSite .floatingContactActions .whatsappFloat{position:static;inset:auto}
+.customerSite .phoneFloat{display:flex;align-items:center;gap:7px;min-height:44px;padding:8px 13px;border:2px solid #ffd500;border-radius:999px;background:linear-gradient(180deg,#119fd1,#0069a0);color:#fff;font-size:14px;font-weight:800;text-decoration:none;box-shadow:0 4px 12px #003b5d33}
+.customerSite .phoneFloat svg{width:18px;height:18px}
+.customerSite .phoneFloat:hover,.customerSite .phoneFloat:focus-visible{background:#ffd500;color:#003b5d;outline:2px solid #0079ad;outline-offset:2px}
+@media(min-width:761px){.customerSite .floatingContactActions{bottom:26px}}
+
+/* Installed customer app stays in a single-column phone layout, even in a wide WebView. */
+.customerSite.homeRefresh.customerFormApp{min-height:var(--customer-app-height,100dvh)}
+.customerSite.homeRefresh.customerFormApp .bookingHero{min-height:calc(var(--customer-app-height,100dvh) - 64px)}
+.customerSite.homeRefresh.customerFormApp .streamlinedBooking .modernRouteCard:not(:has(.routeSwapHandle)){display:flex;flex-direction:column;gap:12px;padding:12px}
+.customerSite.homeRefresh.customerFormApp .modernRouteCard>.modernAddressField{width:100%;min-width:0}
+.customerSite.homeRefresh.customerFormApp .modernRouteCard>.addStopButton{width:100%;min-height:44px;align-self:stretch}
+.customerSite.homeRefresh.customerFormApp .bookingOptionsGroup{display:block}
+.customerSite.homeRefresh.customerFormApp .bookingExtras{margin-top:12px}
+.customerSite.homeRefresh.customerFormApp .modernAddressInput input{font-size:16px!important}
+.customerSite.homeRefresh.customerFormApp .customerTaxiIntro{width:var(--customer-app-width,100vw);height:var(--customer-app-height,100dvh)}
+.customerSite.homeRefresh.customerFormApp .customerTaxiBrand{top:6%;gap:12px}
+.customerSite.homeRefresh.customerFormApp .customerTaxiBrand img{width:64px;height:64px;padding:8px}
+.customerSite.homeRefresh.customerFormApp .customerTaxiBrand p{font-size:24px}
+.customerSite.homeRefresh.customerFormApp .customerTaxiSkip{min-height:48px;font-size:16px}
+
+/* Customer app: a fixed phone shell, with bounded content instead of page scrolling. */
+.customerSite.homeRefresh.customerFormApp{height:var(--customer-app-height,100dvh);min-height:0;max-height:var(--customer-app-height,100dvh);overflow:hidden;display:flex;flex-direction:column;position:relative}
+.customerSite.homeRefresh.customerFormApp .bookingAppHeader{height:52px;min-height:52px;padding:4px 12px;flex:none}
+.customerSite.homeRefresh.customerFormApp .bookingHero.bookingHeroEditorial{flex:1;min-height:0;height:auto;overflow:hidden;padding:8px;display:flex;align-items:stretch}
+.customerSite.homeRefresh.customerFormApp .bookingHero .bookingPanel.streamlinedBooking{width:100%;max-width:600px;min-height:0;height:100%;padding:10px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;border-radius:16px}
+.customerSite.homeRefresh.customerFormApp .bookingColumns{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.customerSite.homeRefresh.customerFormApp .bookingTripColumn,.customerSite.homeRefresh.customerFormApp .bookingDetailsColumn{min-height:0;height:100%;overflow-y:auto;overscroll-behavior:contain;display:block;padding:0;scrollbar-width:thin}
+.customerSite.homeRefresh.customerFormApp .panelTitle{display:none}
+.customerSite.homeRefresh.customerFormApp .savedTripsShortcut{min-height:38px;margin:0 0 6px;padding:6px;font-size:14px;flex:none}
+.customerSite.homeRefresh.customerFormApp .customerPositionSummary{padding:8px 10px;border-radius:12px;background:#eaf7ff;margin-bottom:6px;color:#073b53}
+.customerPositionSummary button{display:flex;align-items:center;gap:8px;border:0;background:none;color:inherit;font-size:16px;font-weight:800;min-height:28px;padding:0;cursor:pointer}
+.customerPositionSummary p{font-size:13px;line-height:1.3;margin:2px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.customerPositionSummary strong{display:block;font-size:14px;line-height:1.3;color:#00678c}
+.customerBookingTabs{display:flex;gap:6px;margin-bottom:8px}
+.customerBookingTabs button{flex:1;min-height:40px;border:1px solid #a7cbd7;border-radius:10px;background:#edf6fa;color:#073b53;font-size:13px;font-weight:700;padding:6px}
+.customerBookingTabs button[aria-pressed=true]{background:#ffdb26;border-color:#a38a0c}
+.customerSite.homeRefresh.customerFormApp .bookingHero[data-app-tab=route] :is(.bookingOptionsGroup,.bookingTravelTools){display:none}
+.customerSite.homeRefresh.customerFormApp .bookingHero[data-app-tab=options] :is(.airportShortcuts,.modernRouteCard){display:none}
+.customerSite.homeRefresh.customerFormApp .bookingHero .airportShortcuts{display:flex;gap:4px;margin:0 0 6px}
+.customerSite.homeRefresh.customerFormApp .bookingHero .airportShortcuts button{flex:1;min-width:0;min-height:40px;font-size:11px;padding:4px}
+.customerSite.homeRefresh.customerFormApp .airportShortcuts svg{display:none}
+.customerSite.homeRefresh.customerFormApp .streamlinedBooking .modernRouteCard{display:flex;flex-direction:column;gap:6px;padding:8px;margin:0;border-radius:12px}
+.customerSite.homeRefresh.customerFormApp .modernRouteCard .routeConnector{display:none}
+.customerSite.homeRefresh.customerFormApp .modernRouteCard .modernAddressField{width:100%;margin:0}
+.customerSite.homeRefresh.customerFormApp .modernAddressInput{min-height:48px}
+.customerSite.homeRefresh.customerFormApp .modernAddressInput input{min-width:0;min-height:44px;height:44px;font-size:16px!important}
+.customerSite.homeRefresh.customerFormApp .modernAddressLabel{font-size:13px;margin-bottom:3px}
+.customerSite.homeRefresh.customerFormApp .modernRouteCard>.addStopButton{min-height:36px;margin:0;padding:4px;font-size:13px;order:3}
+.customerSite.homeRefresh.customerFormApp .priceBox{min-height:54px;margin:8px 0 0;padding:8px 10px;border-radius:10px;gap:8px}
+.customerSite.homeRefresh.customerFormApp .priceBox span{font-size:14px;line-height:1.3}
+.customerSite.homeRefresh.customerFormApp .priceBox small{font-size:11px;line-height:1.3}
+.customerSite.homeRefresh.customerFormApp .priceBox b{font-size:24px;white-space:nowrap}
+.customerSite.homeRefresh.customerFormApp :is(.bookingContinue,.bookPrimary){position:sticky;bottom:0;z-index:5;min-height:48px;margin-top:8px;width:100%;max-width:none;font-size:15px;box-shadow:0 -4px 8px #ffffffd9}
+.customerSite.homeRefresh.customerFormApp .bookingOptionsGroup{display:block}
+.customerSite.homeRefresh.customerFormApp .bookingExtras{margin-top:8px}
+.customerSite.homeRefresh.customerFormApp .bookingExtras summary{padding:10px;font-size:16px}
+.customerSite.homeRefresh.customerFormApp .bookingTravelTools{margin:8px 0}
+.customerSite.homeRefresh.customerFormApp .bookingContactHeading h2{font-size:20px}
+.customerSite.homeRefresh.customerFormApp .bookingDetailsColumn .contactField{display:block;margin:10px 0}
+.customerSite.homeRefresh.customerFormApp .bookingDetailsColumn input{font-size:16px;min-height:44px}
+.customerSite.homeRefresh.customerFormApp .savedTripsPanel{position:absolute;inset:8px;z-index:80;background:#fff;border:2px solid #0088ad;border-radius:16px;padding:14px;overflow:auto;overscroll-behavior:contain}
+.customerSite.homeRefresh.customerFormApp .savedTripsPanel h2{font-size:22px}
+.customerSite.homeRefresh.customerFormApp .savedTripRow{width:100%;min-height:74px;padding:12px;font-size:17px;white-space:normal}
+.customerSite.homeRefresh.customerFormApp .savedTripRow small{font-size:14px}
+.appListPages{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:14px}
+.appListPages button{min-height:44px;border:1px solid #a7cbd7;border-radius:10px;background:#edf6fa;color:#073b53;font-weight:700;padding:8px}
+.appListPages button:disabled{opacity:.45}
+.customerSite.homeRefresh.customerFormApp .bookingSuccess{min-height:0;overflow:auto;overscroll-behavior:contain}
+.customerSite.homeRefresh.customerFormApp .formError{flex:none;max-height:88px;overflow:auto;font-size:14px;margin-top:6px}
+.customerSite.homeRefresh.customerFormApp .locationNotice{font-size:12px;line-height:1.3;margin:4px 0}
+.customerSite.homeRefresh.customerFormApp .customerAppMenu{top:52px;bottom:8px;max-height:none;overflow:auto}
+
+/* Booking-only customer app: no intro, film, decorative gutters or tall card. */
+.customerSite.homeRefresh.customerFormApp{background:#fff}
+.customerSite.homeRefresh.customerFormApp .bookingHero.bookingHeroEditorial{background:#fff;padding:0;border:0}
+.customerSite.homeRefresh.customerFormApp .bookingHero .bookingPanel.streamlinedBooking{max-width:none;width:100%;box-sizing:border-box;border:0;border-radius:0;box-shadow:none;margin:0;padding:12px;background:#fff}
+.customerSite.homeRefresh.customerFormApp .bookingAppHeader{border-bottom:1px solid #d1e5f1;background:#fff}
+
+/* Restored map and compact booking layout, bounded to the app's visible viewport. */
+.customerSite.customerBookingApp.restoredCustomerApp{height:var(--customer-app-height,100dvh)!important;min-height:0!important;overflow:hidden!important;display:flex;flex-direction:column;background:#fff}
+.customerSite.customerBookingApp.restoredCustomerApp .customerAppMap{width:100%!important;max-width:none!important;max-height:none!important;flex:1 1 0!important;min-height:90px!important;padding:0!important;margin:0!important}
+.customerSite.customerBookingApp.restoredCustomerApp .customerAppMap .liveMap{max-height:none!important;max-width:none!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingHero{flex:0 0 auto!important;max-height:calc(var(--customer-app-height,100dvh) - 200px)!important;background:white!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingHero.appSheetExpanded{flex:0 1 auto!important;max-height:calc(var(--customer-app-height,100dvh) - 150px)!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking{width:100%!important;max-width:none!important;box-sizing:border-box}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking .appSheetHandle{min-height:40px!important;height:40px!important;padding:5px 10px!important;font-size:15px!important}
+.customerSite.customerBookingApp.restoredCustomerApp .savedTripsPanel{position:fixed;inset:100px 8px 8px;z-index:1200;overflow:auto;overscroll-behavior:contain;background:#fff;padding:14px;border:2px solid #0088ad;border-radius:16px}
+.customerSite.customerBookingApp.restoredCustomerApp .savedTripRow{width:100%;min-height:64px;font-size:16px}
+
+/* Give the booking controls most of the phone screen; the map is a smaller overview. */
+/* Use phone-sized controls rather than scaling them with the screen height. */
+.customerSite.customerBookingApp.restoredCustomerApp .bookingAppHeader{height:76px!important;min-height:76px!important;flex-basis:76px!important}
+.customerSite.customerBookingApp.restoredCustomerApp .customerAppMap{flex:1 1 0!important;min-height:80px!important;max-height:36%!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingHero{flex:0 1 auto!important;min-height:0!important;max-height:calc(var(--customer-app-height,100dvh) - 156px)!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingHero.appSheetExpanded,.customerSite.customerBookingApp.restoredCustomerApp .bookingHero.appContactStep{max-height:calc(var(--customer-app-height,100dvh) - 156px)!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking{padding:6px 12px 12px!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking .appSheetHandle{height:44px!important;min-height:44px!important;font-size:16px!important;margin-bottom:6px!important;background:#ffdf38!important;color:#07394e!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking .modernAddressInput{height:52px!important;min-height:52px!important;padding:4px 8px!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking .modernAddressInput input{height:100%!important;min-height:0!important;font-size:16px!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking .modernRouteCard{gap:6px!important;margin-bottom:6px!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking .rideTimeChoice button,.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking .bookingContinue{height:48px!important;min-height:48px!important;font-size:16px!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking .priceBox{min-height:44px!important;padding:6px!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking .priceBox>span{font-size:15px!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking .priceBox>b{font-size:23px!important}
+
+/* Customer-only film backdrop. Keep control opacity and all layout sizes intact. */
+.customerSite.customerBookingApp.restoredCustomerApp{position:relative;isolation:isolate;background:#eaf4f8}
+.customerBookingBackdrop{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:#07394e url("/gothenburg-coast-vivid-poster.webp") center/cover no-repeat}
+.customerBookingBackdrop .coastCinema,.customerBookingBackdrop .nightlifeScenery.nightlifeVideo{position:absolute;inset:0;width:100%;height:100%;margin:0}
+.customerBookingBackdrop .nightlifeShade{background:transparent}
+.customerBookingBackdrop .coastCinema{height:var(--customer-film-height)}
+.customerBookingBackdrop .nightlifeScenery.nightlifeVideo video,.customerBookingBackdrop .nightlifeScenery.nightlifeVideo>img{object-fit:contain;object-position:center;background:#07394e}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingHero{isolation:isolate;--customer-film-height:clamp(96px,41.875vw,160px);background:transparent!important;padding-top:var(--customer-film-height)!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking{position:relative;z-index:1;background:rgb(255 255 255 / 48%)!important;backdrop-filter:none;-webkit-backdrop-filter:none}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking .modernRouteCard,
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking .priceBox{background:transparent!important}
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking .modernAddressInput{background:rgb(248 251 253 / 96%)!important}
+
+/* A calm local surface keeps the price readable over moving scenery. */
+.customerSite.customerBookingApp.restoredCustomerApp .bookingPanel.streamlinedBooking .priceBox{background:rgb(255 255 255 / 86%)!important;border-radius:10px!important}

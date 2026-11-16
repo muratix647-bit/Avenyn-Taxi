@@ -1,0 +1,11 @@
+const fs=require('node:fs'),ts=require('typescript'),vm=require('node:vm'),assert=require('node:assert/strict');
+const m={exports:{}};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/completion-time.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{module:m,exports:m.exports,Intl,Date,Error});
+const {completionLocalTime:local,completionUtcTime:utc}=m.exports;
+assert.equal(utc('2026-09-19T15:30:41'),'2026-09-19T13:30:41.000Z');
+assert.equal(utc('2026-12-19T15:30'),'2026-12-19T14:30:00.000Z');
+assert.equal(local('2026-10-01T00:04:41Z'),'2026-10-01T02:04:41');
+assert.throws(()=>utc('2026-02-30T12:00'));
+assert.throws(()=>utc('2026-03-29T02:30'));
+assert.throws(()=>utc(''));
+console.log('Completion time: Swedish summer/winter timezone, seconds preserved, invalid dates and DST gap rejected.');

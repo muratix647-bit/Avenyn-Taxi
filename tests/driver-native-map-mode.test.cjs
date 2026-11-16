@@ -1,0 +1,10 @@
+const fs=require('node:fs'),ts=require('typescript'),vm=require('node:vm'),assert=require('node:assert/strict');
+const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/driver-native-map-mode.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{module:m,exports:m.exports});
+const {nativeMapMode}=m.exports;
+assert.equal(nativeMapMode(false,false,true,true),'idle');
+assert.equal(nativeMapMode(false,false,true,false),'closed','old installed apps must never receive empty waypoints');
+assert.equal(nativeMapMode(false,false,false,true),'closed','settings and other tabs must close idle navigation');
+assert.equal(nativeMapMode(true,false,true,true),'closed','an unaccepted offer must remain visible and actionable');
+assert.equal(nativeMapMode(true,true,true,true),'route');
+assert.equal(nativeMapMode(true,true,false,true),'route','hiding the map must not stop an active journey');
+console.log('Native map modes: idle, older app, settings, offers and active journey passed');

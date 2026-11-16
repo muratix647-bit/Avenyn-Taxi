@@ -1,0 +1,10 @@
+'use client';
+import {useState,type FormEvent} from 'react';
+import {browserSupabase} from '@/lib/supabase-browser';
+import styles from './portal.module.css';
+export default function ActivatePartner({code}:{code:string}){
+ const [stage,setStage]=useState('activate'),[password,setPassword]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ async function activate(){setBusy(true);setError('');try{const client=await browserSupabase('partner');const response=await fetch('/api/partners/activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});const result:any=await response.json();if(!response.ok)throw new Error(result.error);const {error}=await client.auth.setSession(result.session);if(error)throw error;if(result.needs_password)setStage('password');else window.location.replace('/akeri');}catch(e){setError(e instanceof Error?e.message:'Försök igen.');}finally{setBusy(false);}}
+ async function save(e:FormEvent){e.preventDefault();setBusy(true);setError('');try{const client=await browserSupabase('partner');const {error}=await client.auth.updateUser({password});if(error)throw error;window.location.replace('/akeri');}catch(e){setError(e instanceof Error?e.message:'Försök igen.');setBusy(false);}}
+ return <main className={styles.page}><section className={styles.login}><img src="/avenyn-logo-optimized.webp" width="64" height="64" alt="Avenyn Taxi"/><h1>Välkommen till Avenyn Taxi</h1>{stage==='activate'?<><p>Aktivera ditt åkerikonto. Länken kan användas en gång.</p><button className={styles.primary} disabled={busy} onClick={()=>void activate()}>{busy?'Aktiverar…':'Aktivera åkerikonto'}</button></>:<form onSubmit={save}><label>Välj lösenord<input type="password" autoComplete="new-password" minLength={10} required value={password} onChange={e=>setPassword(e.target.value)}/></label><p>Minst 10 tecken.</p><button className={styles.primary} disabled={busy}>{busy?'Sparar…':'Spara och öppna åkeriet'}</button></form>}{error&&<p role="alert" className={styles.error}>{error}</p>}<p><a href="tel:+46700315315">Ring oss om du behöver hjälp</a></p></section></main>;
+}

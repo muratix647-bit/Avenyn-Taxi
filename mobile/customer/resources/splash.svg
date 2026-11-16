@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2732 2732">
+  <rect width="2732" height="2732" fill="#ffffff"/>
+  <g transform="translate(854 725)">
+    <path fill="#0798df" d="M512 0C229 0 0 229 0 512c0 385 512 852 512 852s512-467 512-852C1024 229 795 0 512 0Zm0 728a216 216 0 1 1 0-432 216 216 0 0 1 0 432Z"/>
+  </g>
+  <text x="1366" y="2180" text-anchor="middle" font-family="Arial,sans-serif" font-size="310" font-weight="900" fill="#0798df">AVENYN</text>
+  <text x="1215" y="2485" text-anchor="middle" font-family="Arial,sans-serif" font-size="320" font-weight="900" fill="#ffc400">TAXI</text>
+  <text x="1945" y="2365" text-anchor="middle" font-family="Arial,sans-serif" font-size="112" font-weight="900" fill="#0798df">EST</text>
+  <text x="1945" y="2485" text-anchor="middle" font-family="Arial,sans-serif" font-size="112" font-weight="900" fill="#0798df">2003</text>
+</svg>

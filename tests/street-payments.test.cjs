@@ -1,0 +1,41 @@
+const fs=require('node:fs'),ts=require('typescript'),vm=require('node:vm'),assert=require('node:assert/strict');
+function mod(path,deps={}){const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:m.exports,module:m,require:n=>{if(n in deps)return deps[n];throw Error(n)},Response,Request,URL,URLSearchParams,console,Date});return m.exports}
+const validation=mod('lib/street-payment-validation.ts');
+for(const [v,w] of [['350',35000],['3,50',350],['10000',1000000]])assert.equal(validation.amountOre(v),w);
+for(const v of ['',0,-4,'NaN','1e4','4.123','10000.01','2.99'])assert.throws(()=>validation.amountOre(v));
+const row={id:'ref',stripe_session_id:'cs_live_abc',amount_ore:35000};const good={id:'cs_live_abc',metadata:{street_payment_id:'ref'},currency:'sek',amount_total:35000,payment_status:'paid'};
+assert.equal(validation.confirmedStreetPayment(row,good),true);
+for(const patch of [{id:'other'},{metadata:{}},{amount_total:34999},{currency:'eur'},{payment_status:'unpaid'}])assert.equal(validation.confirmedStreetPayment(row,{...good,...patch}),false);
+let auth=true,approved=true,admin=false,records=[],calls=0;
+const driver={id:'driver1',full_name:'Test'};
+function db(){return {from(table){let filters=[];let op='select',payload;let result;const q={select(){return q},eq(k,v){filters.push(r=>r[k]===v);return q},is(k,v){filters.push(r=>v===null?r[k]==null:r[k]===v);return q},not(k,op,v){filters.push(r=>v===null?r[k]!=null:r[k]!==v);return q},neq(){return q},order(){return q},limit(){return q},upsert(p){op='upsert';payload=p;return q},update(p){op='update';payload=p;return q},single(){return Promise.resolve(exec(true))},maybeSingle(){return Promise.resolve(exec(true))},then(resolve,reject){return Promise.resolve(exec(false)).then(resolve,reject)}};function exec(single){if(table==='drivers')return {data:approved?driver:null,error:approved?null:Error('no')};if(op==='upsert'){if(!records.some(r=>r.id===payload.id))records.push({payment_channel:'payment_link',...payload,status:'creating',created_at:new Date().toISOString()});return {error:null}}let rows=records.filter(r=>filters.every(f=>f(r)));if(op==='update')rows.forEach(r=>Object.assign(r,payload));return {data:single?rows[0]:rows,error:null}}return q}}}
+const route=mod('app/api/payments/street/route.ts',{'@/lib/supabase-server':{adminSupabase:db,requireSupabaseUser:async()=>{if(!auth)throw Error('Logga in');return {user:{id:'u1'},supabase:{rpc:async()=>({data:admin})}}}},'@/lib/stripe':{stripeRequest:async()=>{calls++;return {id:'cs_live_abc',url:'https://checkout.stripe.com/test'}}},'@/lib/street-payments':{syncStreetPayment:async r=>r},'@/lib/street-payment-validation':validation});
+const payload={id:'12345678-1234-4123-8123-123456789abc',amount:'350',reference:''};
+const request=p=>new Request('https://example.com/api/payments/street',{method:'POST',body:JSON.stringify(p)});
+(async()=>{
+ auth=false;assert.equal((await route.POST(request(payload))).status,400);assert.equal(calls,0);
+ auth=true;approved=false;assert.equal((await route.POST(request(payload))).status,400);assert.equal(calls,0);
+ approved=true;assert.equal((await route.POST(request({...payload,amount:'-1'}))).status,400);
+ assert.equal((await route.POST(request(payload))).status,200);assert.equal(calls,1);
+ assert.equal((await route.POST(request(payload))).status,200);assert.equal(calls,1,'retry must reuse session');
+ assert.equal((await route.POST(request({...payload,amount:'400'}))).status,409);assert.equal(calls,1);
+ records[0].driver_id='someone-else';assert.equal((await route.POST(request(payload))).status,404);
+ let res=await route.GET(new Request('https://example.com/api/payments/street'));assert.equal((await res.json()).payments.length,0);
+ assert.equal((await route.GET(new Request('https://example.com/api/payments/street?scope=dispatch'))).status,403);
+ admin=true;res=await route.GET(new Request('https://example.com/api/payments/street?scope=dispatch'));assert.equal((await res.json()).payments.length,1);
+ res=await route.GET(new Request('https://example.com/api/payments/street?session_id=cs_live_abc'));const publicResult=await res.json();assert.equal(publicResult.amount,350);assert.equal(publicResult.driver_id,undefined);assert.equal(publicResult.checkout_url,undefined);
+ const manage=(action,extra={},scope='')=>route.PATCH(new Request('https://example.com/api/payments/street'+scope,{method:'PATCH',body:JSON.stringify({id:payload.id,action,...extra})}));
+ assert.equal((await manage('edit',{reference:'other'})).status,404,'driver cannot edit another driver payment');
+ assert.equal((await manage('archive',{},'?scope=dispatch')).status,200);
+ assert.equal((await (await route.GET(new Request('https://example.com/api/payments/street?scope=dispatch'))).json()).payments.length,0);
+ assert.equal((await (await route.GET(new Request('https://example.com/api/payments/street?scope=dispatch&trash=1'))).json()).payments.length,1);
+ assert.equal(records[0].status,'pending','archive must not change processor status');
+ assert.equal((await manage('restore',{},'?scope=dispatch')).status,200);
+ records[0].driver_id='driver1';records[0].status='paid';records[0].paid_at='2026-10-09T00:00:00Z';
+ assert.equal((await manage('edit',{reference:'Edited',amount_ore:999,status:'expired'})).status,200);
+ assert.equal(records[0].reference,'Edited');assert.equal(records[0].amount_ore,35000);assert.equal(records[0].status,'paid');
+ assert.equal((await manage('edit',{reference:'x'.repeat(121)})).status,400);
+ admin=false;assert.equal((await manage('archive',{},'?scope=dispatch')).status,403);
+ auth=false;assert.equal((await manage('archive')).status,403);
+ console.log('Street payments: amounts, paid verification, auth, ownership, admin scope, retry idempotency passed.');
+})().catch(e=>{console.error(e);process.exitCode=1});

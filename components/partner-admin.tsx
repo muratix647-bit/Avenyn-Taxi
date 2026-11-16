@@ -1,0 +1,21 @@
+'use client';
+import { useCallback, useEffect, useState } from 'react';
+import { partnerStatuses } from '@/lib/partner-applications';
+import styles from './partner-admin.module.css';
+import PartnerConnection from './partner-connection';
+import PartnerRegistrationAdmin from './partner-registration-admin';
+export default function PartnerAdmin({accessToken}:{accessToken:string}){
+ const [rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[filter,setFilter]=useState('all'),[saving,setSaving]=useState(''),[notice,setNotice]=useState('');
+ const load=useCallback(async()=>{setLoading(true);setError('');try{const response=await fetch('/api/partners/admin',{headers:{Authorization:`Bearer ${accessToken}`},cache:'no-store'});const result: any=await response.json();if(!response.ok)throw new Error(result.error);setRows(result.applications);}catch(e){setError(e instanceof Error?e.message:'Försök igen.');}finally{setLoading(false);}},[accessToken]);
+ useEffect(()=>{void load();},[load]);
+ async function save(row:any){setSaving(row.id);setError('');setNotice('');try{const response=await fetch('/api/partners/admin',{method:'PATCH',headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify({id:row.id,status:row.status,admin_note:row.admin_note,updated_at:row.updated_at})});const result: any=await response.json();if(!response.ok)throw new Error(result.error);setRows(current=>current.map(item=>item.id===row.id?result.application:item));setNotice(`Sparat: ${row.company}`);}catch(e){setError(e instanceof Error?e.message:'Försök igen.');}finally{setSaving('');}}
+ function change(id:string,key:string,value:string){setRows(current=>current.map(row=>row.id===id?{...row,[key]:value}:row));}
+ const visible=rows.filter(row=>filter==='all'||row.status===filter);
+ return <section className={styles.panel}><div className={styles.toolbar}><div><h2>Åkeripartners</h2><p>{rows.filter(row=>row.status==='new').length} nya ansökningar · {rows.length} totalt</p></div><button onClick={()=>void load()} disabled={loading||!!saving}>Uppdatera ansökningar</button><a href="/bli-akeripartner" target="_blank" rel="noreferrer">Visa ansökningssidan</a></div>
+ <p className={styles.help}>Granska trafiktillstånd och kom överens om partneravtalet innan samarbetet börjar. När ansökan är godkänd kan du ansluta åkeriet och dela en personlig aktiveringslänk.</p>
+ <label className={styles.filter}>Visa<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">Alla ansökningar</option>{Object.entries(partnerStatuses).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+ {error&&<p className={styles.error} role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
+ {loading?<p role="status">Hämtar ansökningar…</p>:!visible.length?<div className={styles.empty}>Inga ansökningar att visa.</div>:<div className={styles.list}>{visible.map(row=><article key={row.id} className={styles.card}><div className={styles.top}><div><h3>{row.company}</h3><span>Org.nr {row.org_number} · {row.vehicle_count} bilar</span></div><span>{new Date(row.created_at).toLocaleDateString('sv-SE',{timeZone:'Europe/Stockholm'})}</span></div><p><b>{row.contact_name}</b> · <a href={`tel:${row.phone.replace(/[^+\d]/g,'')}`}>{row.phone}</a> · <a href={`mailto:${row.email}`}>{row.email}</a></p><p><b>Område:</b> {row.area}<br/><b>Trafiktillstånd:</b> {row.permit_number}</p>{row.message&&<p className={styles.message}>{row.message}</p>}<div className={styles.edit}><label>Status<select value={row.status} onChange={e=>change(row.id,'status',e.target.value)}>{Object.entries(partnerStatuses).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label>Intern anteckning<textarea value={row.admin_note} maxLength={2000} rows={2} onChange={e=>change(row.id,'admin_note',e.target.value)}/></label><button disabled={!!saving} onClick={()=>void save(row)}>{saving===row.id?'Sparar…':'Spara'}</button></div>{row.status==='approved'&&<PartnerConnection application={row} accessToken={accessToken}/>}</article>)}</div>}
+ <PartnerRegistrationAdmin accessToken={accessToken}/>
+ </section>;
+}

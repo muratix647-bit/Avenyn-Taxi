@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "se.avenyntaxi.driver",
+      "sha256_cert_fingerprints": [
+        "F6:CE:F2:2A:2D:F6:B4:88:56:26:BE:ED:C9:65:01:19:70:19:43:1C:57:D8:1C:D8:00:34:EE:57:9B:DA:3E:ED"
+      ]
+    }
+  }
+]

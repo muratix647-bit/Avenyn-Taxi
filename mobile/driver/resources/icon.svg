@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" rx="210" fill="#071d31"/>
+  <path fill="#0798df" d="M512 110c-113 0-205 92-205 205 0 154 205 341 205 341s205-187 205-341c0-113-92-205-205-205Zm0 291a86 86 0 1 1 0-172 86 86 0 0 1 0 172Z"/>
+  <text x="512" y="780" text-anchor="middle" font-family="Arial,sans-serif" font-size="137" font-weight="900" fill="#ffffff">FÖRARE</text>
+  <text x="512" y="915" text-anchor="middle" font-family="Arial,sans-serif" font-size="126" font-weight="900" fill="#ffc400">AVENYN TAXI</text>
+</svg>

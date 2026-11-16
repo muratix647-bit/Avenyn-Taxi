@@ -1,0 +1,19 @@
+'use client';
+import {useEffect,useState,useCallback} from 'react';
+import styles from './partner-jobs.module.css';
+const statuses:Record<string,string>={assigned:'Tilldelad',accepted:'Accepterad',en_route:'På väg',arrived:'Framme',passenger_onboard:'Kund i bilen',new:'Välj förare',scheduled:'Förbokad',offered:'Erbjuden'};
+function Job({job,drivers,vehicles,accessToken,reload}:{job:any;drivers:any[];vehicles:any[];accessToken:string;reload:()=>void}){
+ const [driver,setDriver]=useState(job.driver_id||''),[vehicle,setVehicle]=useState(job.vehicle_id||''),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
+ useEffect(()=>{setDriver(job.driver_id||'');setVehicle(job.vehicle_id||'');},[job.driver_id,job.vehicle_id]);
+ const editable=['new','scheduled','assigned','accepted','offered'].includes(job.status),person=drivers.find(d=>d.id===job.driver_id),car=vehicles.find(v=>v.id===job.vehicle_id);
+ async function save(){setBusy(true);setNotice('');try{const r=await fetch('/api/partners/jobs',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${accessToken}`},body:JSON.stringify({bookingId:job.id,driverId:driver,vehicleId:vehicle,updatedAt:job.updated_at})});const data:any=await r.json();if(!r.ok)throw Error(data.error);setNotice(data.notified?'Tilldelat. Föraren har aviserats.':'Tilldelat i förarappen. Push kunde inte bekräftas – ring föraren.');reload();}catch(e){setNotice(e instanceof Error?e.message:'Försök igen.');}finally{setBusy(false);}}
+ return <article className={styles.card}><div className={styles.row}><b>#{job.booking_number} · {job.booking_date} {job.pickup_time?.slice(0,5)}</b><span>{!job.driver_id?'Väntar på förare':statuses[job.status]||job.status}</span></div><p>{job.pickup_address}<br/>Till {job.dropoff_address}</p><small>{job.passengers} passagerare{job.car_type==='large'?' · Storbil':''}{job.child_seats?` · ${job.child_seats} barnstol`:''}</small>{job.extra_message&&<p>{job.extra_message}</p>}
+ {person&&<p><b>{person.full_name}</b> · {car?.registration_number||'Bil saknas'} {person.phone&&<a href={`tel:${person.phone.replace(/[^+\d]/g,'')}`}>Ring föraren</a>}</p>}
+ {editable&&<div className={styles.form}><label>Förare<select value={driver} onChange={e=>setDriver(e.target.value)}><option value="">Välj förare</option>{drivers.map(d=><option key={d.id} value={d.id}>{d.full_name}</option>)}</select></label><label>Bil<select value={vehicle} onChange={e=>setVehicle(e.target.value)}><option value="">Välj bil</option>{vehicles.map(v=><option key={v.id} value={v.id}>{v.registration_number||v.name} · {v.passenger_capacity||4} platser</option>)}</select></label><button disabled={!driver||!vehicle||busy} onClick={()=>void save()}>{busy?'Sparar…':job.driver_id?'Byt förare / bil':'Tilldela körning'}</button></div>}{notice&&<p role="status">{notice}</p>}</article>;
+}
+export default function PartnerJobs({accessToken}:{accessToken:string}){
+ const [data,setData]=useState<any>(null),[error,setError]=useState('');
+ const load=useCallback(async()=>{try{const r=await fetch('/api/partners/jobs',{headers:{Authorization:`Bearer ${accessToken}`},cache:'no-store'});const j:any=await r.json();if(!r.ok)throw Error(j.error);setData(j);setError('');}catch(e){setError(e instanceof Error?e.message:'Kunde inte uppdatera.');}},[accessToken]);
+ useEffect(()=>{void load();const timer=setInterval(()=>{if(!document.hidden)void load()},10000);return()=>clearInterval(timer);},[load]);
+ return <section><div className={styles.row}><h2>Aktiva uppdrag</h2><button onClick={()=>void load()}>Uppdatera</button></div>{error&&<p role="alert">{error}</p>}{!data&&!error&&<p>Hämtar…</p>}{data?.truncated&&<p>De första 500 aktiva uppdragen visas.</p>}{data&&!data.jobs.length&&<p>Inga aktiva uppdrag tilldelade till åkeriet.</p>}{data?.jobs.map((job:any)=><Job key={job.id} job={job} drivers={data.drivers} vehicles={data.vehicles} accessToken={accessToken} reload={()=>void load()}/>)}</section>;
+}

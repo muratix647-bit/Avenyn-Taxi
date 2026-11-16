@@ -2,6 +2,18 @@
 
 # dependencies
 /node_modules
+/mobile/*/node_modules
+/mobile/*/android/.gradle
+/mobile/*/android/.kotlin
+/mobile/*/android/app/build
+/mobile/*/android/hs_err_pid*.log
+/mobile/*/android/core.*
+/mobile/*/android/key.properties
+/mobile/*/android/app/*.jks
+/mobile/*/android/app/*.keystore
+/mobile/*/android/app/google-services.json
+!/mobile/driver/android/app/google-services.json
+/mobile/*/ios/App/App/GoogleService-Info.plist
 /.pnp
 .pnp.*
 .yarn/*
@@ -15,10 +27,8 @@
 
 # next.js
 /.next/
+/.vinext/
 /out/
-
-# production
-/build
 
 # misc
 .DS_Store
@@ -37,5 +47,16 @@ yarn-error.log*
 .vercel
 
 # typescript
-*.tsbuildinfo
 next-env.d.ts
+*.tsbuildinfo
+/dist/
+/.wrangler/
+# Checkout-local execution profile and tool state; never publish them.
+/.sites-runtime/
+/.agents/
+/.codex/
+/outputs/
+/work/
+
+# Local archive staging files
+.*.tar.gz.*

@@ -1,0 +1,7 @@
+const fs=require('node:fs'),ts=require('typescript'),vm=require('node:vm'),assert=require('node:assert/strict');
+function load(db){const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/payment-sync.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:m,exports:m.exports,require:k=>k==='./supabase-server'?{adminSupabase:()=>db}:{retrieveCheckoutSession:()=>{throw Error('Unexpected Stripe call')}},Date,Promise,Set,console});return m.exports;}
+(async()=>{let scans=0,scope=null;const q={select(){return q},eq(){return q},not(){return q},gte(){return q},order(){return q},limit(){return q},in(k,v){scope={k,v};return q},then(resolve){resolve({data:[],error:null})}};const db={from(){scans++;return q}};
+assert.equal(await load(db).syncPendingStripePayments([]),0);assert.equal(scans,0,'No trips means no database scan and no Stripe wait');assert.equal(await load(db).syncPendingStripePayments(['']),0);assert.equal(scans,0);
+await load(db).syncPendingStripePayments(['own','own']);assert.equal(scope.k,'booking_id');assert.deepEqual(Array.from(scope.v),['own']);assert.equal(scans,1,'Owned scope remains bounded');
+await load(db).syncPendingStripePayments();assert.equal(scans,2,'Dispatch can still reconcile globally when scope is omitted');
+console.log('Payment sync: empty driver scope returns immediately; owned booking filter and dispatch global reconciliation preserved');})().catch(e=>{console.error(e);process.exitCode=1});

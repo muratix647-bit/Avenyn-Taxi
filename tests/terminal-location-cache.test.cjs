@@ -1,0 +1,13 @@
+const fs=require('node:fs'),ts=require('typescript'),vm=require('node:vm'),assert=require('node:assert/strict');
+const env={STRIPE_SECRET_KEY:'account-a',STRIPE_TERMINAL_LOCATION_ID:'tml_first'};let now=10000,calls=0,fail=false;
+const m={exports:{}};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/terminal-payments.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{module:m,exports:m.exports,Date:{now:()=>now},String,require:k=>k==='cloudflare:workers'?{env}:k==='./stripe'?{stripeRequest:async path=>{calls++;if(fail)throw Error('offline');return{id:path.split('/').pop(),address:{country:'SE'}}}}:{}});
+(async()=>{const {terminalLocation}=m.exports;
+assert.deepEqual(await Promise.all([terminalLocation(),terminalLocation(),terminalLocation()]),['tml_first','tml_first','tml_first']);assert.equal(calls,3,'cold lookups keep request-bound IO separate');
+await terminalLocation();assert.equal(calls,3);
+now+=30001;await terminalLocation();assert.equal(calls,4,'expired config is checked again');
+env.STRIPE_SECRET_KEY='account-b';await terminalLocation();assert.equal(calls,5,'account rotation cannot use former cache');
+env.STRIPE_TERMINAL_LOCATION_ID='tml_second';assert.equal(await terminalLocation(),'tml_second');assert.equal(calls,6);
+now+=30001;fail=true;await assert.rejects(terminalLocation());fail=false;await terminalLocation();assert.equal(calls,8,'failure is not retained');
+console.log('Terminal location cache: concurrent requests, expiry, account/config rotation and failure recovery passed');
+})().catch(e=>{console.error(e);process.exitCode=1});

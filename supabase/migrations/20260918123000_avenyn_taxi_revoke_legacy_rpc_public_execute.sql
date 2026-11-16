@@ -1,0 +1,44 @@
+revoke execute on function public.driver_accept_booking(uuid,uuid) from public,anon,authenticated;
+revoke execute on function public.driver_progress_booking(uuid,uuid,text) from public,anon,authenticated;
+revoke execute on function public.driver_respond_offer(uuid,uuid,boolean) from public,anon,authenticated;
+revoke execute on function public.driver_set_online(uuid,boolean) from public,anon,authenticated;
+revoke execute on function public.driver_update_location(uuid,double precision,double precision,double precision,double precision) from public,anon,authenticated;
+revoke execute on function public.driver_register_device(uuid,text,text,text) from public,anon,authenticated;
+revoke execute on function public.driver_disable_device(uuid,text) from public,anon,authenticated;
+revoke execute on function public.customer_booking_status(bigint,text) from public,anon,authenticated;
+revoke execute on function public.customer_create_booking(text,text,text,text,text,date,time without time zone,integer,integer,text,text,numeric,boolean,text) from public,anon,authenticated;
+revoke execute on function public.admin_assign_driver(uuid,uuid) from public,anon,authenticated;
+revoke execute on function public.admin_set_booking_status(uuid,text,text) from public,anon,authenticated;
+revoke execute on function public.dispatch_expire_offers() from public,anon,authenticated;
+revoke execute on function public.log_avenyn_price_change() from public,anon,authenticated;
+revoke execute on function public.rls_auto_enable() from public,anon,authenticated;
+
+revoke execute on function public.dispatch_assign_driver(uuid,uuid,text) from public,anon;
+revoke execute on function public.dispatch_set_booking_status(uuid,text,text,text) from public,anon;
+revoke execute on function public.dispatch_archive_booking(uuid,boolean) from public,anon;
+revoke execute on function public.dispatch_auto_assign(uuid,text) from public,anon;
+grant execute on function public.dispatch_assign_driver(uuid,uuid,text) to authenticated;
+grant execute on function public.dispatch_set_booking_status(uuid,text,text,text) to authenticated;
+grant execute on function public.dispatch_archive_booking(uuid,boolean) to authenticated;
+grant execute on function public.dispatch_auto_assign(uuid,text) to authenticated;
+
+revoke execute on function public.driver_register_self(text,text) from public,anon;
+revoke execute on function public.driver_my_bookings() from public,anon;
+revoke execute on function public.driver_reject_my_booking(uuid) from public,anon;
+revoke execute on function public.driver_progress_my_booking(uuid,text) from public,anon;
+revoke execute on function public.driver_respond_my_offer(uuid,boolean) from public,anon;
+revoke execute on function public.driver_set_my_online(boolean) from public,anon;
+revoke execute on function public.driver_set_my_online(boolean,text) from public,anon;
+revoke execute on function public.driver_update_my_location(double precision,double precision,double precision,double precision) from public,anon;
+grant execute on function public.driver_register_self(text,text) to authenticated;
+grant execute on function public.driver_my_bookings() to authenticated;
+grant execute on function public.driver_reject_my_booking(uuid) to authenticated;
+grant execute on function public.driver_progress_my_booking(uuid,text) to authenticated;
+grant execute on function public.driver_respond_my_offer(uuid,boolean) to authenticated;
+grant execute on function public.driver_set_my_online(boolean,text) to authenticated;
+grant execute on function public.driver_update_my_location(double precision,double precision,double precision,double precision) to authenticated;
+
+revoke execute on function public.my_driver_id() from public,anon;
+revoke execute on function public.is_dispatch_admin() from public,anon;
+grant execute on function public.my_driver_id() to authenticated;
+grant execute on function public.is_dispatch_admin() to authenticated;

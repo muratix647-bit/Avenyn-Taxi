@@ -1,0 +1,31 @@
+'use client';
+import {useCallback,useEffect,useState,type FormEvent} from 'react';
+import {useSupabaseSession} from '@/hooks/use-supabase-session';
+import styles from './portal.module.css';
+import CommissionBreakdown from '@/components/commission-breakdown';
+import PeriodPicker from '@/components/report-period';
+import {weekPeriod,monthPeriod,isOwnCompany} from '@/lib/report-period';
+import PartnerJobs from '@/components/partner-jobs';
+import PartnerRegistration from '@/components/partner-registration';
+const labels:Record<string,string>={new:'Ny',scheduled:'Förbokad',offered:'Erbjuden',assigned:'Tilldelad',accepted:'Accepterad',en_route:'På väg',arrived:'Framme',passenger_onboard:'Kund i bilen',completed:'Slutförd',cancelled:'Avbokad'};
+const money=(amount:number)=>new Intl.NumberFormat('sv-SE',{style:'currency',currency:'SEK',maximumFractionDigits:0}).format(amount);
+export default function PartnerPortal(){
+ const {client,session,loading,error:authError,setError:setAuthError}=useSupabaseSession('partner');
+ const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[data,setData]=useState<any>(null),[tab,setTab]=useState('jobs'), [period,setPeriod]=useState(()=>weekPeriod());
+ const load=useCallback(async()=>{if(!session)return;setBusy(true);setError('');try{const response=await fetch(`/api/partners/portal?from=${period.from}&to=${period.to}`,{headers:{Authorization:`Bearer ${session.access_token}`},cache:'no-store'});const result:any=await response.json();if(!response.ok)throw new Error(result.error);setData(result);}catch(e){setError(e instanceof Error?e.message:'Försök igen.');setData(null);}finally{setBusy(false);}},[session,period.from,period.to]);
+ useEffect(()=>{void load();},[load]);
+ async function login(e:FormEvent){e.preventDefault();if(!client)return;setBusy(true);setAuthError('');const {error}=await client.auth.signInWithPassword({email:email.trim(),password});if(error)setAuthError('Fel e-post eller lösenord.');setBusy(false);}
+ const header=<header className={styles.header}><a href="/" className={styles.brand}><img src="/avenyn-logo-optimized.webp" width="42" height="42" alt=""/><b>Avenyn Taxi · Åkeri</b></a>{session&&<button onClick={()=>void client?.auth.signOut()}>Logga ut</button>}</header>;
+ if(loading)return <main className={styles.page}>{header}<p className={styles.loading}>Hämtar…</p></main>;
+ if(!session)return <main className={styles.page}>{header}<section className={styles.login}><h1>Åkeriinloggning</h1><form onSubmit={login}><label>E-post<input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email" required/></label><label>Lösenord<input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="current-password" required/></label>{authError&&<p role="alert" className={styles.error}>{authError}</p>}<button className={styles.primary} disabled={busy||!client}>{busy?'Loggar in…':'Logga in'}</button></form><p>Första gången? Använd aktiveringslänken från Avenyn Taxi.</p><a href="tel:+46700315315">Behöver du hjälp? Ring oss</a></section></main>;
+ return <main className={styles.page}>{header}<div className={styles.content}><div className={styles.title}><div><small>ÅKERIPORTAL</small><h1>{data?.partner.company||'Ditt åkeri'}</h1></div><button onClick={()=>void load()} disabled={busy}>Uppdatera</button></div><nav className={styles.tabs}>{[['jobs','Uppdrag'],['trips','Veckounderlag'],['drivers','Förare'],['vehicles','Bilar']].map(([value,label])=><button key={value} aria-pressed={tab===value} className={tab===value?styles.selected:''} onClick={()=>setTab(value)}>{label}</button>)}</nav>
+ {error&&<p className={styles.error} role="alert">{error}</p>}{busy&&<p role="status">Hämtar…</p>}
+ {tab==='jobs'&&<PartnerJobs accessToken={session.access_token}/>}
+ {tab==='trips'&&<PeriodPicker initialMode="thisWeek" value={period} onChange={setPeriod}/>}
+ {data&&tab==='trips'&&<><div className={styles.summary}><div><span>Slutförda körningar</span><b>{data.summary.completed}</b></div><div><span>Belopp · slutförda resor</span><b>{money(data.summary.amount)}</b></div></div><CommissionBreakdown commission={!isOwnCompany(data.partner.company)} title="Vald period" amounts={data.trips.filter((t:any)=>t.status==='completed').map((t:any)=>t.amount)}/>{data.truncated&&<p className={styles.error}>Sammanställningen är begränsad till 2 000 resor. Välj en kortare period.</p>}{!data.trips.length?<p className={styles.empty}>Inga körningar under perioden. Avenyn Taxi kopplar dina förare och tilldelar körningar.</p>:<div className={styles.cards}>{data.trips.map((trip:any)=><article className={styles.card} key={trip.id}><div className={styles.row}><b>#{trip.booking_number} · {trip.booking_date} {trip.pickup_time.slice(0,5)}</b><span>{labels[trip.status]||trip.status}</span></div><p>{trip.pickup_address}<br/><span className={styles.muted}>Till</span> {trip.dropoff_address}</p><div className={styles.row}><span>{data.drivers.find((d:any)=>d.id===trip.driver_id)?.full_name||'Förare'}</span><b>{money(trip.amount)}</b></div></article>)}</div>}</>}
+ {data&&tab==='drivers'&&<PartnerRegistration kind="driver" accessToken={session.access_token} onApprovedRefresh={()=>void load()}/>}
+ {data&&tab==='drivers'&&(!data.drivers.length?<p className={styles.empty}>Inga förare kopplade ännu.</p>:<div className={styles.cards}>{data.drivers.map((driver:any)=><article className={styles.card} key={driver.id}><h2>{driver.full_name}</h2><p>{driver.registration_number||'Ingen bil angiven'}</p>{driver.phone&&<a href={`tel:${driver.phone.replace(/[^+\d]/g,'')}`}>{driver.phone}</a>}</article>)}</div>)}
+ {data&&tab==='vehicles'&&<PartnerRegistration kind="vehicle" accessToken={session.access_token} onApprovedRefresh={()=>void load()}/>}
+ {data&&tab==='vehicles'&&(!data.vehicles.length?<p className={styles.empty}>Inga bilar kopplade ännu.</p>:<div className={styles.cards}>{data.vehicles.map((vehicle:any)=><article className={styles.card} key={vehicle.id}><h2>{vehicle.registration_number}</h2><p>{vehicle.name} {vehicle.model}</p></article>)}</div>)}
+ </div><footer className={styles.footer}><a href="tel:+46700315315">Ring Avenyn Taxi</a><a href="/integritet">Integritet</a></footer></main>;
+}

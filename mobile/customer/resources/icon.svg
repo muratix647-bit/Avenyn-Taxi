@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" rx="210" fill="#ffffff"/>
+  <path fill="#0798df" d="M512 105c-108 0-196 88-196 196 0 147 196 325 196 325s196-178 196-325c0-108-88-196-196-196Zm0 278a82 82 0 1 1 0-164 82 82 0 0 1 0 164Z"/>
+  <text x="512" y="744" text-anchor="middle" font-family="Arial,sans-serif" font-size="136" font-weight="900" fill="#0798df">AVENYN</text>
+  <text x="455" y="892" text-anchor="middle" font-family="Arial,sans-serif" font-size="150" font-weight="900" fill="#ffc400">TAXI</text>
+  <text x="782" y="835" text-anchor="middle" font-family="Arial,sans-serif" font-size="54" font-weight="900" fill="#0798df">EST</text>
+  <text x="782" y="892" text-anchor="middle" font-family="Arial,sans-serif" font-size="54" font-weight="900" fill="#0798df">2003</text>
+</svg>

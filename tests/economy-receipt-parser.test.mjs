@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {parseSwedishReceipt} from '../components/receipt-ocr-parser.ts';
+const sample='Exempelbutiken\n2026-11-05\nKontorsmaterial\nAtt betala 1.250,00 kr\nMoms 25%';
+const p=parseSwedishReceipt(sample);
+assert.equal(p.totalOre,125000);assert.equal(p.expenseDate,'2026-11-05');assert.equal(p.vatRate,25);assert.equal(p.category,'kontorsmaterial');
+assert.equal(parseSwedishReceipt(sample+'\nMoms 6%').vatRate,null);
+assert.equal(parseSwedishReceipt('Kvitto 12345678\nMoms 25% 25,00').totalOre,null);
+assert.equal(parseSwedishReceipt(sample.replace('2026-11-05','2026-02-30')).expenseDate,'');
+assert.equal(parseSwedishReceipt('Butik\nAtt betala 125,00\nSumma moms 25,00').totalOre,12500);
+console.log('PASS: Swedish totals, dates, categories, mixed VAT and uncertain receipts');

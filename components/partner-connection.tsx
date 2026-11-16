@@ -1,0 +1,22 @@
+'use client';
+import {useCallback,useEffect,useState} from 'react';
+import styles from './partner-admin.module.css';
+export default function PartnerConnection({application,accessToken}:{application:any;accessToken:string}){
+ const [data,setData]=useState<any>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[link,setLink]=useState(''),[driver,setDriver]=useState(''),[vehicle,setVehicle]=useState(''),[copied,setCopied]=useState(false);
+ const load=useCallback(async()=>{try{const response=await fetch('/api/partners/resources',{headers:{Authorization:`Bearer ${accessToken}`},cache:'no-store'});const result:any=await response.json();if(!response.ok)throw new Error(result.error);setData(result);}catch(e){setError(e instanceof Error?e.message:'Försök igen.');}},[accessToken]);
+ useEffect(()=>{void load();},[load]);
+ const partner=data?.partners.find((p:any)=>p.application_id===application.id);
+ async function connect(){setBusy(true);setError('');setCopied(false);try{const response=await fetch('/api/partners/connect',{method:'POST',headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify({application_id:application.id})});const result:any=await response.json();if(!response.ok)throw new Error(result.error);setLink(result.activation_url);await load();}catch(e){setError(e instanceof Error?e.message:'Försök igen.');}finally{setBusy(false);}}
+ async function attach(kind:string,id:string){if(!id||!partner)return;setBusy(true);setError('');try{const response=await fetch('/api/partners/resources',{method:'POST',headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify({kind,partner_id:partner.id,resource_id:id})});const result:any=await response.json();if(!response.ok)throw new Error(result.error);setDriver('');setVehicle('');await load();}catch(e){setError(e instanceof Error?e.message:'Försök igen.');}finally{setBusy(false);}}
+ if(application.status!=='approved'&&!partner)return null;
+ const drivers=data?.drivers.filter((d:any)=>data.driver_links.some((l:any)=>l.driver_id===d.id&&l.partner_id===partner?.id))||[];
+ const vehicles=data?.vehicles.filter((v:any)=>data.vehicle_links.some((l:any)=>l.vehicle_id===v.id&&l.partner_id===partner?.id))||[];
+ return <div className={styles.connection}>
+ <h4>{partner?'Anslutet åkeri':'Anslut åkeriet'}</h4>
+ <p className={styles.help}>Koppla bara detta åkeris förare och bilar. Åkeriet får se deras körningar från anslutningsdagen.</p>
+ <button disabled={busy||!data||application.status!=='approved'} onClick={()=>void connect()}>{busy?'Arbetar…':partner?'Skapa ny aktiveringslänk':'Anslut åkeriet'}</button>
+ {link&&<div className={styles.invite}><b>Personlig länk till {application.email}</b><p>Giltig i högst en timme. Dela bara med åkeriets kontaktperson.</p><input aria-label="Aktiveringslänk" value={link} readOnly onFocus={e=>e.target.select()}/><button onClick={async()=>{try{await navigator.clipboard.writeText(link);setCopied(true);}catch{setError('Markera länken och kopiera den manuellt.');}}}>{copied?'Kopierad':'Kopiera länk'}</button></div>}
+ {partner&&data&&<><div className={styles.resources}><div><b>Förare · {drivers.length}</b>{drivers.map((d:any)=><p key={d.id}>{d.full_name}</p>)}<label>Välj befintlig förare<select value={driver} onChange={e=>setDriver(e.target.value)}><option value="">Välj förare</option>{data.drivers.filter((d:any)=>!data.driver_links.some((l:any)=>l.driver_id===d.id)).map((d:any)=><option key={d.id} value={d.id}>{d.full_name}</option>)}</select></label><button disabled={busy||!driver} onClick={()=>void attach('driver',driver)}>Koppla förare</button></div><div><b>Bilar · {vehicles.length}</b>{vehicles.map((v:any)=><p key={v.id}>{v.registration_number} {v.name}</p>)}<label>Välj befintlig bil<select value={vehicle} onChange={e=>setVehicle(e.target.value)}><option value="">Välj bil</option>{data.vehicles.filter((v:any)=>!data.vehicle_links.some((l:any)=>l.vehicle_id===v.id)).map((v:any)=><option key={v.id} value={v.id}>{v.registration_number} {v.name}</option>)}</select></label><button disabled={busy||!vehicle} onClick={()=>void attach('vehicle',vehicle)}>Koppla bil</button></div></div><p className={styles.help}>Åkeriet kan registrera förare och bilar i sin portal. Du godkänner dem här och tilldelar åkeriet körningar under Bokningar. <a href="/akeri" target="_blank" rel="noreferrer">Åkeriinloggning</a></p></>}
+ {error&&<p className={styles.error} role="alert">{error}</p>}
+ </div>;
+}
