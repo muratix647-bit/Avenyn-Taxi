@@ -337,11 +337,12 @@ export default function ReceiptsPage() {
       if(!window.confirm(summary)) return;
       const result=await api("approve",{receipt_id:chosen.id,bank_id:bankId,
         account,deductible_vat_ore:vat,confirmed:true});
-      setNotice("Bokföring genomförd. Verifikation: " +
-        JSON.stringify(result.posted ?? result.entry_id));
       setApprovedChecked(false);
       await load();
-      await fetchReview();
+      const updated = await api("review",{receipt_id:chosen.id,bank_id:bankId});
+      setReview(updated.review as LedgerReview);
+      setNotice("Bokföring genomförd. Verifikation: " +
+        JSON.stringify(result.posted ?? result.entry_id));
     });
   }
 
