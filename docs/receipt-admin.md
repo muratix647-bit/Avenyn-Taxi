@@ -4,6 +4,7 @@
 - Supabase Edge Function finance-receipts-admin är driftsatt med verify_jwt=true.
 - Supabase-databasen har kvittofält för vat_suggestion, vat_suggestion_at, file_sha256, bankkandidater och spärr för ändring av bokfört kvitto.
 - Gränssnittet ligger på /admin/ekonomi/kvitton när denna GitHub-gren har slagits ihop och webbappen har driftsatts.
+- Separat administratörskonsol är publicerad på https://ksmxrxqidnrvgubivhzy.supabase.co/functions/v1/finance-receipts-console och kräver Supabase-inloggning samt aktivt dispatch_admins-konto. API-endpointen kräver JWT; konsolen innehåller inga företagsdata före inloggning.
 - Den befintliga publika webbplatsens driftsättningskoppling har inte verifierats. Att grenen finns i GitHub betyder inte att ändringen syns i dagens trafikledningsmeny.
 
 ## Administratör
